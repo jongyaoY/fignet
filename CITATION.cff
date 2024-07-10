@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this package, please cite it as below."
+authors:
+- family-names: "Yi"
+  given-names: "Zongyao"
+title: "FIGNet PyTorch implementation"
+version: 0.0.1
+doi: 10.5281/zenodo.13763155
+date-released: 2024-09-14
+url: "https://github.com/jongyaoY/fignet"

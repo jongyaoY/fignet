@@ -1,0 +1,103 @@
+repos:
+  # Standard hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-docstring-first
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-vcs-permalinks
+      - id: check-xml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+        exclude: &excludes |
+          (?x)^(
+              .*\.b|
+              .*\.blend|
+              .*\.dae|
+              .*\.mtl|
+              .*\.obj|
+              .*\.pgm|
+              .*\.step|
+              .*\.stl
+          )$
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+        exclude: *excludes
+      - id: trailing-whitespace
+        exclude: *excludes
+
+  # - repo: https://github.com/astral-sh/ruff-pre-commit
+  #   # Ruff version.
+  #   rev: v0.5.1
+  #   hooks:
+  #     # Run the linter.
+  #     - id: ruff
+  #       args: [ --fix, --exit-non-zero-on-fix ]
+  #     # Run the formatter.
+  #     - id: ruff-format
+  - repo: https://github.com/psf/black
+    rev: 24.4.2 # Replace by any tag/version: https://github.com/psf/black/tags
+    hooks:
+      - id: black
+        language_version: python3 # Should be a command that runs python3.6+
+        args: ["--line-length=79"]
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (python)
+        args: ["--profile", "black", "--line-length=79"]
+
+  - repo: https://github.com/PyCQA/flake8.git
+    rev: 7.1.0
+    hooks:
+    - id: flake8
+      args: [
+        "--max-line-length=88",
+        "--extend-ignore=E203"]
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.3.1
+    hooks:
+      - id: insert-license
+        files: \.py$
+        exclude: |
+          (?x)^(
+              .*setup\.py|
+              .*__init__\.py|
+              fignet/normalization.py|
+              fignet/logger.py|
+          )$
+        args:
+          - --license-filepath
+          - LICENSE
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.3.1
+    hooks:
+      - id: insert-license
+        files: fignet/normalization.py$
+        args:
+          - --license-filepath
+          - docs/license-gns
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.3.1
+    hooks:
+      - id: insert-license
+        files: fignet/logger.py$
+        args:
+          - --license-filepath
+          - docs/LICENSE-standford
+
+  - repo: https://github.com/markdownlint/markdownlint
+    rev: v0.12.0
+    hooks:
+    - id: markdownlint
+      args: [-s, .markdownlint.rb]

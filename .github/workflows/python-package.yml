@@ -1,0 +1,49 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Python package
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8"]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        sudo apt update && sudo apt install ffmpeg libsm6 libxext6  -y
+        sudo apt install libglfw3 libglfw3-dev -y
+        python -m pip install --upgrade pip
+        python -m pip install "opencv-python-headless<4.3"
+        python -m pip install pytest
+        python -m pip install \
+        https://download.pytorch.org/whl/cu115/torchvision-0.12.0%2Bcu115-cp38-cp38-linux_x86_64.whl#sha256=817b3c3f64363b889a6a8c60ab8a322fbc1aa8ea1697e798d8a0ade1f7340cb7
+        python -m pip install \
+        https://download.pytorch.org/whl/cu115/torch-1.11.0%2Bcu115-cp38-cp38-linux_x86_64.whl#sha256=02779dc7c0cd188416496adb233ae9e3988a9aa73d9ebba3624507d0f2111f3c
+        python -m pip install 'git+https://github.com/facebookresearch/pytorch3d.git@stable' -v
+        python -m pip install https://data.pyg.org/whl/torch-1.11.0%2Bcu115/torch_scatter-2.0.9-cp38-cp38-linux_x86_64.whl
+        python -m pip install https://cloud.dfki.de/owncloud/index.php/s/F9EwmwWkSW8pzfL/download/eigenpy-3.8.0-0-cp38-cp38-manylinux_2_31_x86_64.whl
+        python -m pip install https://cloud.dfki.de/owncloud/index.php/s/Tb4baydBiRP6iN2/download/hpp_fcl-2.4.5-3-cp38-cp38-manylinux_2_31_x86_64.whl
+        python -m pip install -r requirements.txt
+        python -m pip install .
+        pip uninstall opencv-python
+        pip install "opencv-python-headless<4.3"
+        python -m robosuite.scripts.setup_macros
+    - name: Test with pytest
+      run: |
+        python -m pytest tests/test_graph_networks.py

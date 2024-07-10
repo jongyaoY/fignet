@@ -1,0 +1,34 @@
+# Training params
+use_cuda: true
+batch_size: 16
+num_workers: 0
+lr_init: 1.0e-3
+lr_decay_rate: 0.1
+lr_decay_steps: 500
+training_steps: 500
+warmup_steps: 1
+# Evaluation
+loss_report_step: 100
+log_grad: True
+log_grad_step: 100
+save_model_step: 100
+eval_step: 100
+rollout_steps: 10
+run_validate: true
+num_eval_rollout: 2
+save_video: false
+# Dataset
+data_path: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500"
+test_data_path: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500.npz"
+data_config:
+  noise_std: 3.0e-5
+  connectivity_radius: 0.01
+  input_seq_length: 3
+# Logging
+logging_folder: "log_test"
+log_level: "info"
+# continue_log_from: "2024-08-29-17:05"
+# Simulator params
+latent_dim: 128
+message_passing_steps: 10
+mlp_layers: 2
