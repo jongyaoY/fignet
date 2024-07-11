@@ -70,10 +70,29 @@ repos:
               .*setup\.py|
               .*__init__\.py|
               fignet/normalization.py|
+              fignet/logger.py|
           )$
         args:
           - --license-filepath
           - LICENSE
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.3.1
+    hooks:
+      - id: insert-license
+        files: fignet/normalization.py$
+        args:
+          - --license-filepath
+          - docs/license-gns
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.3.1
+    hooks:
+      - id: insert-license
+        files: fignet/logger.py$
+        args:
+          - --license-filepath
+          - docs/LICENSE-standford
 
   - repo: https://github.com/markdownlint/markdownlint
     rev: v0.12.0
