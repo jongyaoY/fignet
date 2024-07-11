@@ -4,7 +4,7 @@
 Development](https://img.shields.io/badge/Maintenance%20Level-Actively%20Developed-brightgreen.svg)](https://gist.github.com/cheerfulstoic/d107229326a01ff0f333a1d3476e068d)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Version:** 1.0.0
+**Version:** 0.0.1
 
 **Date:** 2024-07-08
 
@@ -51,9 +51,11 @@ python scripts/train.py # TODO
 python scripts/render.py # TODO
 ```
 
-Generated rollout, with ground truth on top, simulation on the bottom
+Generated rollout after training for 651k steps, with ground truth on top and
+simulation on the bottom
 
-![ground truth and simulated rollout](docs/img/gt_sim.gif)
+![gif](docs/img/gt.gif)
+![gif](docs/img/sim.gif)
 
 ## Acknowledgments
 
@@ -128,4 +130,5 @@ Action (BMWK) with the grant number 01ME19003D
     inputs and targets to zero-mean unit-variance.
     The loss is computed in the normalized space of the
     targets
+  - [ ] upload dataset
 - [x] Visualization
