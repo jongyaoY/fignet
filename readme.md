@@ -75,8 +75,8 @@ The following files are partially copied from
 
 This work is carried out as part of the [ChargePal
 project](https://www.dfki.de/en/web/research/projects-and-publications/project/chargepal)
-through a grant of the German Federal Ministry of Economics and Technology
-(BMWi) with the grant number 01ME19003D
+through a grant of the German Federal Ministry for Economic Affairs and Climate
+Action (BMWK) with the grant number 01ME19003D
 
 ## License
 
@@ -86,10 +86,10 @@ through a grant of the German Federal Ministry of Economics and Technology
 
 ### Publish code
 
-- [ ] License
+- [x] License
 - [ ] Install instructions
 - [ ] Example usage
-- [ ] GIF showing the results
+- [x] GIF showing the results
 - [x] Acknowledgement
 
 ### Implementation
