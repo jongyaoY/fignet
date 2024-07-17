@@ -19,6 +19,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from collections import deque
+
 import torch
 import torch.nn as nn
 
@@ -41,6 +43,7 @@ class Normalizer(nn.Module):
             requires_grad=False,
             device=device,
         )
+        self._acc_buffer = deque(maxlen=max_accumulations)
         self._acc_count = torch.tensor(
             0, dtype=torch.float32, requires_grad=False, device=device
         )
@@ -57,6 +60,7 @@ class Normalizer(nn.Module):
     def forward(self, batched_data, accumulate=True):
         """Normalizes input data and accumulates statistics."""
         if accumulate:
+            self._acc_buffer.append(batched_data.detach())
             # stop accumulating after a million updates, to prevent accuracy issues
             if self._num_accumulations < self._max_accumulations:
                 self._accumulate(batched_data.detach())
@@ -78,28 +82,29 @@ class Normalizer(nn.Module):
         self._num_accumulations += 1
 
     def _mean(self):
-        safe_count = torch.maximum(
-            self._acc_count,
-            torch.tensor(
-                1.0, dtype=torch.float32, device=self._acc_count.device
-            ),
-        )
-        return self._acc_sum / safe_count
+        # safe_count = torch.maximum( self._acc_count, torch.tensor( 1.0,
+        #     dtype=torch.float32, device=self._acc_count.device ), )
+
+        mean = torch.mean(torch.cat(list(self._acc_buffer), dim=0), dim=0)
+        # return self._acc_sum / safe_count
+        return mean
 
     def _std_with_epsilon(self):
-        safe_count = torch.maximum(
-            self._acc_count,
-            torch.tensor(
-                1.0, dtype=torch.float32, device=self._acc_count.device
-            ),
-        )
-        std = torch.sqrt(
-            self._acc_sum_squared / safe_count - self._mean() ** 2
-        )
+        # safe_count = torch.maximum( self._acc_count, torch.tensor( 1.0,
+        #     dtype=torch.float32, device=self._acc_count.device ), ) std =
+        #     torch.sqrt( self._acc_sum_squared / safe_count - self._mean() **
+        #         2 ) std = self._acc_sum_squared / safe_count - self._mean()
+        #     ** 2 std = torch.maximum( std, torch.zeros(1,
+        # requires_grad=False, dtype=torch.float32,
+        # device=self._acc_count.device)) std = torch.sqrt(std)
+        std = torch.std(torch.cat(list(self._acc_buffer), dim=0), dim=0)
+        # std = (self._acc_sum_squared - 2 * self._mean() * self._acc_sum +
+        # self._mean() **2) / safe_count std = torch.sqrt(std)
         return torch.maximum(std, self._std_epsilon)
 
     def get_variable(self):
         dict = {
+            "_acc_buffer": self._acc_buffer,
             "_max_accumulations": self._max_accumulations,
             "_std_epsilon": self._std_epsilon,
             "_acc_count": self._acc_count,

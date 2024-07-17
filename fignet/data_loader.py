@@ -20,8 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import json
-import os
 
 import numpy as np
 import torch
@@ -30,6 +28,13 @@ import tqdm
 
 from fignet.scene import Scene
 from fignet.utils import dict_to_tensor
+
+
+def collate_fn(batch_dict):
+    if len(batch_dict) == 1:
+        return batch_dict[0]
+    else:
+        raise NotImplementedError()
 
 
 class ToTensor(object):
@@ -47,19 +52,20 @@ class MujocoDataset(torch.utils.data.Dataset):
     """Load Mujoco dataset"""
 
     def __init__(self, path, input_sequence_length, mode: str, transform=None):
-        meta_data_path = os.path.join(path, "metadata.json")
-        with open(meta_data_path) as f:
-            self.metadata = json.load(f)
-        self._scene = Scene(self.metadata["scene_config"])
-        if mode == "sample":
-            data_name = "dataset.npz"
-        elif mode == "trajectory":
-            data_name = "test_dataset.npz"
-        data_path = os.path.join(path, data_name)
-        self._data = list(np.load(data_path, allow_pickle=True).values())[0]
+        # meta_data_path = os.path.join(path, "metadata.json")
+        # with open(meta_data_path) as f:
+        #     self.metadata = json.load(f)
+        # self._scene = Scene(self.metadata["scene_config"])
+        # if mode == "sample":
+        #     data_name = "dataset.npz"
+        # elif mode == "trajectory":
+        #     data_name = "test_dataset.npz"
+        # data_path = os.path.join(path, data_name)
+        self._data = list(np.load(path, allow_pickle=True).values())[0]
         self._dimension = self._data[0]["pos"].shape[-1]
         self._target_length = 1
         self._input_sequence_length = input_sequence_length
+
         self._data_lengths = [
             x["pos"].shape[0] - input_sequence_length - self._target_length
             for x in self._data
@@ -104,7 +110,7 @@ class MujocoDataset(torch.utils.data.Dataset):
 
         start = time_idx - self._input_sequence_length
         end = time_idx
-        obj_ids = self._data[trajectory_idx]["obj_id"]
+        obj_ids = dict(self._data[trajectory_idx]["obj_id"].item())
         positions = self._data[trajectory_idx]["pos"][
             start:end
         ]  # (seq_len, n_obj, 3) input sequence
@@ -117,12 +123,15 @@ class MujocoDataset(torch.utils.data.Dataset):
         target_poses = np.concatenate(
             [target_posisitons, target_quats], axis=-1
         )
-        self._scene.synchronize_states(
-            obj_poses=poses, obj_ids=dict(obj_ids.item())
+
+        scene_config = dict(self._data[trajectory_idx]["meta_data"].item())
+
+        scn = Scene(scene_config)
+        scn.synchronize_states(
+            obj_poses=poses,
+            obj_ids=obj_ids,
         )
-        graph = self._scene.to_graph(
-            target_poses=target_poses, obj_ids=dict(obj_ids.item())
-        )
+        graph = scn.to_graph(target_poses=target_poses, obj_ids=obj_ids)
         # graph = ToTensor()(graph) data = HeteroData() data['mesh'].x =
         # graph['m_x'] data['mesh'].y = graph['m_y'] data['object'].x =
         # graph['o_x'] data['object'].y = graph['o_y'] data['mesh', 'regular',
@@ -158,6 +167,9 @@ class MujocoDataset(torch.utils.data.Dataset):
         end = time_idx
         obj_ids = self._data[trajectory_idx]["obj_id"]
         obj_ids = dict(obj_ids.item())
+        mujoco_xml = str(self._data[trajectory_idx]["mujoco_xml"])
+        scene_config = dict(self._data[trajectory_idx]["meta_data"].item())
+
         positions = self._data[trajectory_idx]["pos"][
             start:end
         ]  # (seq_len, n_obj, 3) input sequence
@@ -169,7 +181,7 @@ class MujocoDataset(torch.utils.data.Dataset):
         traj = {"obj_ids": obj_ids, "pose_seq": pose_seq}
         if self._transform is not None:
             traj = self._transform(traj)
-        return traj
+        return traj, mujoco_xml, scene_config
 
 
 def get_normalization_stats(dataset):
