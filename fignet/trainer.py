@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import json
 import os
 
 import numpy as np
@@ -30,12 +29,13 @@ import torch.utils.data
 import tqdm
 from torchvision import transforms as T
 
-from fignet.data_loader import MujocoDataset, ToTensor
+from fignet.data_loader import MujocoDataset, ToTensor, collate_fn
 from fignet.logger import Logger
 from fignet.scene import Scene
 from fignet.simulator import LearnedSimulator
 from fignet.utils import (
     KinematicType,
+    check_nan,
     optimizer_to,
     rollout,
     rot_diff,
@@ -50,7 +50,6 @@ class Trainer:
     def __init__(
         self,
         sim: LearnedSimulator,
-        ref_sim,
         config: dict,
         logger: Logger,
         stats: dict = None,
@@ -59,13 +58,9 @@ class Trainer:
             "cuda" if torch.cuda.is_available() else "cpu"
         )
         self._sim = sim
-        self._ref_sim = ref_sim
         self._input_seq_length = 2  # TODO
         data_path = config["data_path"]
-        meta_data_path = os.path.join(data_path, "metadata.json")
-        with open(meta_data_path) as f:
-            self._metadata = json.load(f)
-        self._scene = Scene(self._metadata["scene_config"])
+        test_data_path = config["test_data_path"]
         self._datasets = {}
         self._datasets["train"] = MujocoDataset(
             data_path,
@@ -74,7 +69,7 @@ class Trainer:
             transform=T.Compose([ToTensor(self._device)]),
         )
         self._datasets["val"] = MujocoDataset(
-            data_path,
+            test_data_path,
             config["rollout_steps"],
             mode="trajectory",
             transform=T.Compose([ToTensor(self._device)]),
@@ -89,8 +84,9 @@ class Trainer:
             self._datasets["val"],
             batch_size=1,
             shuffle=True,
+            collate_fn=collate_fn,
         )
-
+        self._warmup_steps = config.get("warmup_steps")
         self._logger = logger
         # Optimization params
         self._lr_init = config["lr_init"]
@@ -102,7 +98,7 @@ class Trainer:
         self._optimizer = torch.optim.Adam(
             self._sim.parameters(), lr=self._lr_init
         )
-        self._clip_norm = config["clip_norm"]
+        self._clip_norm = config.get("clip_norm")
         self._stop_step = config.get("training_steps")
         optimizer_to(self._optimizer, self._device)
         # Evaluation params
@@ -124,11 +120,43 @@ class Trainer:
         if stats is not None:
             self._stats = list_to_numpy(stats)
 
+    def fill_normalization_buffer(self):
+        warmup_steps = self._warmup_steps
+        self._sim.train()
+        for i, sample in enumerate(
+            tqdm.tqdm(
+                self._dataloaders["train"], desc="Filling normalization buffer"
+            )
+        ):
+            m_mask = (
+                sample["kinematic"]["mesh"].squeeze() == KinematicType.DYNAMIC
+            )
+            self._sim._encoder_preprocessor(sample)
+            self._sim.normalize_accelerations(
+                sample["target_acc"]["mesh"].squeeze()[m_mask],
+            )
+            if (
+                torch.isnan(self._sim._node_normalizer._std_with_epsilon())
+                .all()
+                .item()
+            ):
+                raise RuntimeError("Nan normalization")
+            if (
+                torch.isnan(self._sim._output_normalizer._std_with_epsilon())
+                .all()
+                .item()
+            ):
+                raise RuntimeError("Nan normalization")
+            if i > warmup_steps:
+                break
+
     def train(self):
         """Run the training loop"""
         self._sim.to(self._device)
+        self.fill_normalization_buffer()
         step = 0
         for sample in tqdm.tqdm(self._dataloaders["train"]):
+            check_nan(sample)
             self._sim.train()
             m_mask = (
                 sample["kinematic"]["mesh"].squeeze() == KinematicType.DYNAMIC
@@ -139,6 +167,8 @@ class Trainer:
             )
 
             m_pred_acc, o_pred_acc = self._sim.predict_accelerations(sample)
+            check_nan(m_pred_acc)
+            check_nan(o_pred_acc)
             m_target_acc = self._sim.normalize_accelerations(
                 sample["target_acc"]["mesh"].squeeze()[m_mask],
                 # self._stats['acc']['mesh']
@@ -157,9 +187,10 @@ class Trainer:
             loss = o_loss + m_loss
             self._optimizer.zero_grad()
             loss.backward()
-            # torch.nn.utils.clip_grad.clip_grad_norm(
-            # self._sim.parameters(),
-            # self._clip_norm)
+            if self._clip_norm is not None:
+                torch.nn.utils.clip_grad.clip_grad_norm(
+                    self._sim.parameters(), self._clip_norm
+                )
             self._optimizer.step()
 
             lr_new = (
@@ -202,16 +233,21 @@ class Trainer:
         self._logger.print(f"Validate after {step} steps")
         input_seq_length = self._input_seq_length
         self._sim.eval()
-        t_errors = []
-        r_errors = []
-        for i, traj in enumerate(self._dataloaders["val"]):
+        rollout_t_errors = []
+        rollout_r_errors = []
+        onestep_t_errors = []
+        onestep_r_errors = []
+        for i, data in enumerate(self._dataloaders["val"]):
             # Get initial states
-            init_poses = traj["pose_seq"].squeeze()[0:input_seq_length, ...]
-            gt_poses = to_numpy(traj["pose_seq"]).squeeze()
+            traj = data[0]
+            mujoco_xml = data[1]
+            scene_config = data[2]
+            init_poses = traj["pose_seq"][0:input_seq_length, ...]
+            gt_poses = to_numpy(traj["pose_seq"])
             gt_poses = np.delete(gt_poses, 0, axis=0)
             obj_ids = traj["obj_ids"]
             for k, v in obj_ids.items():
-                obj_ids[k] = v.squeeze().cpu().item()
+                obj_ids[k] = v.cpu().item()
             self._logger.print(f"sampling rollout {i}")
             pred_traj = []
             try:
@@ -219,7 +255,7 @@ class Trainer:
                     sim=self._sim,
                     init_obj_poses=init_poses,
                     obj_ids=obj_ids,
-                    scene=self._scene,
+                    scene=Scene(scene_config),
                     device=self._device,
                     nsteps=self._rollout_steps,
                 )
@@ -230,23 +266,35 @@ class Trainer:
                 )
 
             # Calculate translational and rotational errors
-            if len(pred_traj) > 0:
+            if pred_traj.shape[0] > 0:
+                # Calculate rollout errors
                 pred_pose = pred_traj[-1, ...]
                 gt_pose = gt_poses[-1, ...]
                 error_t = (gt_pose[:, :3] - pred_pose[:, :3]) ** 2
                 error_t = np.mean(error_t.sum(axis=-1))
+                error_t = np.sqrt(error_t)
                 error_r = rot_diff(gt_pose[:, 3:], pred_pose[:, 3:])
                 error_r = np.mean(error_r)
-                t_errors.append(error_t)
-                r_errors.append(error_r)
+                rollout_t_errors.append(error_t)
+                rollout_r_errors.append(error_r)
+                # Calculate one step errors
+                pred_pose = pred_traj[1, ...]
+                gt_pose = gt_poses[1, ...]
+                error_t = (gt_pose[:, :3] - pred_pose[:, :3]) ** 2
+                error_t = np.mean(error_t.sum(axis=-1))
+                error_t = np.sqrt(error_t)
+                error_r = rot_diff(gt_pose[:, 3:], pred_pose[:, 3:])
+                error_r = np.mean(error_r)
+                onestep_t_errors.append(error_t)
+                onestep_r_errors.append(error_r)
                 # Record video
                 if i == 0 and self._save_video:
                     try:
                         screens_pred = visualize_trajectory(
-                            self._ref_sim, pred_traj, obj_ids, True
+                            mujoco_xml, pred_traj, obj_ids, True
                         )
                         screens_gt = visualize_trajectory(
-                            self._ref_sim, gt_poses, obj_ids, True
+                            mujoco_xml, gt_poses, obj_ids, True
                         )
                         screens_pred = screens_pred.transpose(0, 3, 1, 2)
                         screens_gt = screens_gt.transpose(0, 3, 1, 2)
@@ -262,7 +310,6 @@ class Trainer:
                             step,
                             fps=60,
                         )
-                        self
                     except Exception as e:
                         self._logger.print(e, level="warn")
 
@@ -271,8 +318,20 @@ class Trainer:
                 and i >= self._num_eval_rollout
             ):
                 break
-        if len(t_errors) > 0:
-            t_mean_error = np.mean(t_errors)
-            r_mean_error = np.mean(r_errors)
-            self._logger.tb.add_scalar("val/t_mean_error", t_mean_error, step)
-            self._logger.tb.add_scalar("val/r_mean_error", r_mean_error, step)
+        if len(rollout_t_errors) > 0:
+            self._logger.tb.add_scalar(
+                "val/rollout_translation_error",
+                np.mean(rollout_t_errors),
+                step,
+            )
+            self._logger.tb.add_scalar(
+                "val/rollout_rotation_error", np.mean(rollout_r_errors), step
+            )
+            self._logger.tb.add_scalar(
+                "val/onestep_translation_error",
+                np.mean(onestep_t_errors),
+                step,
+            )
+            self._logger.tb.add_scalar(
+                "val/onestep_rotation_error", np.mean(onestep_r_errors), step
+            )

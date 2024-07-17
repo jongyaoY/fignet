@@ -38,6 +38,7 @@ class LearnedSimulator(nn.Module):
         nmessage_passing_steps: int,
         nmlp_layers: int,
         mlp_hidden_dim: int,
+        property_dim: int = 5,
         noise_std: float = 1e-5,
         device="cpu",
     ):
@@ -65,10 +66,8 @@ class LearnedSimulator(nn.Module):
 
         # node_dim =
         # self._mesh_dimensions + 2 + self._node_type_embedding_size
-        # vel, kin, mass_inv, node_type_embedding
-        node_dim = (
-            self._mesh_dimensions + 1 + KinematicType.SIZE
-        )  # vel, kin, mass_inv
+        # vel, kin, properties, node_type_embedding
+        node_dim = self._mesh_dimensions + property_dim + KinematicType.SIZE
         norm_edge_dim = (
             self._mesh_dimensions + 1
         ) * 2  # [drs, |drs|, drs_ref, |drs_ref|]

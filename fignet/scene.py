@@ -46,6 +46,7 @@ class Scene:
 
     def __init__(self, config: dict) -> None:
         self._mesh_dim = 3
+        self._dim_properties = None
         self._num_vertices = 0
         self._num_obj = 0
         self._meshes = {}
@@ -55,6 +56,10 @@ class Scene:
         self._vert_offsets = {}
         self._obj_ids = {}
         self._connectivity_radius = config.get("connectivity_radius")
+
+        if self._connectivity_radius is None:
+            self._connectivity_radius = 0.005
+
         self._collision_manager = CollisionManager(
             security_margin=self._connectivity_radius
         )
@@ -63,8 +68,10 @@ class Scene:
 
         # Create env objects
         for name, env_obj in config.get("env").items():
-            if env_obj.get("type") == "box":
+            if name == "floor":
                 mesh = trimesh.creation.box(extents=env_obj.get("extents"))
+            else:
+                raise RuntimeError(f"Unknown environment object type {name}")
             if env_obj.get("initial_pose"):
                 mesh.apply_transform(
                     pose_to_transform(np.asarray(env_obj["initial_pose"]))
@@ -77,10 +84,15 @@ class Scene:
         # Load meshes
         for name, obj in config.get("objects").items():
             mesh = trimesh.load(obj["mesh"])
+            trimesh.repair.fix_normals(mesh)
             self.add_object(
                 name=name, mesh=mesh, obj_kinematic=KinematicType.DYNAMIC
             )
             self._set_obj_properties(name, obj["properties"])
+            if self._dim_properties is None:
+                self._dim_properties = self._object_property_array(name).shape[
+                    1
+                ]
 
         self._setup()
 
@@ -132,12 +144,20 @@ class Scene:
             self._obj_ref_com[ob_id, ...] = self._meshes[name].center_mass
 
     def _set_obj_properties(self, name: str, properties: Dict[str, Any]):
-        """Set object properties, currently only mass"""
+        """Set object properties"""
+
         try:
             if properties["mass"] == "undefined":
                 properties["mass"] = 1.0 / self._meshes[name].mass
         except KeyError:
-            properties["mass"] = 0.0
+            if "density" in properties:
+                self._meshes[name].density = properties["density"]
+                # properties["mass"] = properties["density"] * self._meshes[name].volume
+                properties["mass"] = 1.0 / self._meshes[name].mass
+                del properties["density"]
+            else:
+                properties["mass"] = 0.0
+
         self._obj_properties.update({name: properties})
 
     def set_obj_pose(self, name: str, pose: np.ndarray):
@@ -370,7 +390,12 @@ class Scene:
         prop_array = []
         if prop:
             for v in prop.values():
-                prop_array.append(v)
+                if isinstance(v, list):
+                    prop_array += v
+                elif isinstance(v, np.ndarray):
+                    prop_array += v.tolist()
+                else:
+                    prop_array += [v]
             return np.asarray(prop_array)[None, :]  # (1, prop_dim)
         else:
             return None
@@ -409,12 +434,10 @@ class Scene:
         """
         # Mesh node components
         mesh_vel = np.empty((self._num_vertices, self._mesh_dim))
-        mesh_prop = np.empty(
-            (self._num_vertices, 1)
-        )  # TODO: currently only mass
+        mesh_prop = np.empty((self._num_vertices, self._dim_properties))
         # Object node components
         obj_vel = np.empty((self._num_obj, self._mesh_dim))
-        obj_prop = np.empty((self._num_obj, 1))  # TODO: currently only mass
+        obj_prop = np.empty((self._num_obj, self._dim_properties))
         for name, obj_id in self._obj_ids.items():
             start, end = self._vert_index(name)
             mesh_prop[start:end, :] = np.repeat(

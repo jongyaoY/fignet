@@ -31,20 +31,29 @@ import tqdm
 import trimesh
 from pytorch3d.ops import corresponding_points_alignment
 from robosuite.utils import OpenCVRenderer
-from robosuite.utils.binding_utils import MjSim
+from robosuite.utils.binding_utils import MjRenderContext, MjSim
 from scipy.spatial.transform import Rotation as R
 
 
 class KinematicType(enum.IntEnum):
     STATIC = 0
     DYNAMIC = 1
-    SIZE = 9
+    SIZE = 2
 
 
 class NodeType(enum.IntEnum):
     MESH = 0
     OBJECT = 1
     SIZE = 9
+
+
+def check_nan(data):
+    if isinstance(data, dict):
+        for k, v in data.items():
+            check_nan(v)
+    elif isinstance(data, torch.Tensor):
+        if data.nelement() and torch.isnan(data).all().item():
+            raise RuntimeError("nan")
 
 
 def to_numpy(tensor: torch.Tensor):
@@ -327,7 +336,12 @@ def plot_graph(
     plt.show()
 
 
-def visualize_trajectory(sim: MjSim, traj, obj_ids, off_screen: bool = False):
+def visualize_trajectory(
+    mujoco_xml: str, traj, obj_ids, off_screen: bool = False
+):
+    sim = MjSim.from_xml_string(mujoco_xml)
+    render_context = MjRenderContext(sim)
+    sim.add_render_context(render_context)
     viewer = OpenCVRenderer(sim)
     dt = 0.002  # TODO
     seq_length = traj.shape[0]
@@ -336,8 +350,9 @@ def visualize_trajectory(sim: MjSim, traj, obj_ids, off_screen: bool = False):
     for t in range(seq_length):
         for name, ob_id in obj_ids.items():
             pose = traj[t, ob_id, :]
-            bid = sim.model.body_name2id(name)
-            q_id = sim.model.body_jntadr[bid]
+            # bid = sim.model.body_name2id(name)
+            q_id = ob_id
+            # q_id = sim.model.body_jntadr[bid]
             sim.data.qpos[q_id * 7 : q_id * 7 + 3] = pose[:3]
             sim.data.qpos[q_id * 7 + 3 : q_id * 7 + 7] = pose[3:][
                 [3, 0, 1, 2]

@@ -39,33 +39,41 @@ def init_trainer():
     latent_dim = 128
 
     config = {
-        "data_path": "datasets/test",
+        "test_data_path": "datasets/mujoco_moviA_1000.npz",
+        "data_path": "datasets/mujoco_moviA_1000000.npz",
         "logging_folder": "log_test",
         "log_level": "debug",
         "lr_init": 1e-3,
         "lr_decay_rate": 0.1,
-        "lr_decay_steps": 1e4,
-        "loss_report_step": 10,
+        "lr_decay_steps": 1e6,
+        "loss_report_step": 1,
         "save_model_step": 1000,
-        "eval_step": 1000,
+        "eval_step": 10,
         "training_steps": 50,
-        "clip_norm": 1e-2,
+        # "clip_norm": 1e-2,
         "rollout_steps": 50,
         "run_validate": True,
         "num_eval_rollout": 2,
-        "save_video": False,
+        "save_video": True,
+        "warmup_steps": 10,
     }
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("Using cuda")
+    else:
+        device = torch.device("cpu")
+        print("using cpu")
     sim = LearnedSimulator(
         mesh_dimensions=3,
         latent_dim=latent_dim,
         nmessage_passing_steps=10,
         nmlp_layers=2,
-        mlp_hidden_dim=128,
+        mlp_hidden_dim=latent_dim,
         noise_std=1e-4,
-        device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        device=device,
     )
     logger = Logger(config)
-    trainer = Trainer(sim=sim, ref_sim=ref_sim, logger=logger, config=config)
+    trainer = Trainer(sim=sim, logger=logger, config=config)
 
     return trainer
 
