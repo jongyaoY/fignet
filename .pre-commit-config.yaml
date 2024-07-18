@@ -58,7 +58,9 @@ repos:
     rev: 7.1.0
     hooks:
     - id: flake8
-      args: ["--max-line-length=88", "--extend-ignore=E203"]
+      args: [
+        "--max-line-length=88",
+        "--extend-ignore=E203"]
 
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.3.1
