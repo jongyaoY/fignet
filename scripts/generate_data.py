@@ -20,20 +20,35 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import argparse
+import os
 
 import numpy as np
 import tqdm
 
 import rigid_fall
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--total_steps", type=int, required=True)
+parser.add_argument("--ep_len", type=int, required=False, default=200)
+parser.add_argument(
+    "--render", action="store_true", required=False, default=False
+)
+parser.add_argument("--data_path", required=False, default="datasets")
+parser.add_argument("--dataset_prefix", required=False, default="mujoco_moviA")
+args = parser.parse_args()
+
 # Params
 num_object_range = [3, 5]
-ep_len = 200
-# total_steps = 1000
-total_steps = 1000000
-render = True
-data_path = "datasets/mujoco_moviA"
-data_path = data_path + "_" + str(total_steps)
+ep_len = args.ep_len
+total_steps = args.total_steps
+render = args.render
+data_path = args.data_path
+data_path = os.path.join(os.getcwd(), data_path)
+dataset_name = args.dataset_prefix + "_" + str(total_steps)
+if not os.path.exists(data_path):
+    os.mkdir(data_path)
+data_path = os.path.join(data_path, dataset_name)
 
 
 if __name__ == "__main__":
