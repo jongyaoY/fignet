@@ -337,7 +337,7 @@ def plot_graph(
 
 
 def visualize_trajectory(
-    mujoco_xml: str, traj, obj_ids, off_screen: bool = False
+    mujoco_xml: str, traj: np.ndarray, obj_ids: dict, off_screen: bool = False
 ):
     sim = MjSim.from_xml_string(mujoco_xml)
     render_context = MjRenderContext(sim)

@@ -171,11 +171,9 @@ class Trainer:
             check_nan(o_pred_acc)
             m_target_acc = self._sim.normalize_accelerations(
                 sample["target_acc"]["mesh"].squeeze()[m_mask],
-                # self._stats['acc']['mesh']
             )
             o_target_acc = self._sim.normalize_accelerations(
                 sample["target_acc"]["object"].squeeze()[o_mask],
-                # self._stats['acc']['object']
             )
             m_loss = torch.nn.functional.mse_loss(
                 m_pred_acc[m_mask], m_target_acc
@@ -266,7 +264,7 @@ class Trainer:
                 )
 
             # Calculate translational and rotational errors
-            if pred_traj.shape[0] > 0:
+            if len(pred_traj) > 0:
                 # Calculate rollout errors
                 pred_pose = pred_traj[-1, ...]
                 gt_pose = gt_poses[-1, ...]
