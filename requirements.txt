@@ -1,5 +1,3 @@
-dm_control==1.0.16
-lxml==4.8.0
 matplotlib==3.5.1
 moviepy==1.0.0
 numpy==1.23.1
