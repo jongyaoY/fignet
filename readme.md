@@ -82,22 +82,25 @@ pip install .
 
 ## How to train
 
-> Download dataset
+> Generate dataset
 
 ```bash
-# TODO
+python scripts/generate_dataset.py
+--total_steps=1000000 --data_path=datasets  # For training
+python scripts/generate_dataset.py
+--total_steps=1000 --data_path=datasets # For testing
 ```
 
 > Run the training loop
 
 ```bash
-python scripts/train.py # TODO
+python scripts/train.py --config_file=config/train.json
 ```
 
 > Render rollout
 
 ```bash
-python scripts/render.py # TODO
+python scripts/render_model.py --model_path=[model path] --num_ep=[number of episodes] --off_screen --video_path=[video path]
 ```
 
 After training for 1M steps, we generated 3 trajectories with 400 steps each.
@@ -136,7 +139,8 @@ Action (BMWK) with the grant number 01ME19003D
 
 ## References
 
-<a id="1">\[1\]</a> Allen, Kelsey R., et al. "Learning rigid dynamics with face interaction graph networks." arXiv preprint arXiv:2212.03574 (2022).
+<a id="1">\[1\]</a> Allen, Kelsey R., et al. "Learning rigid dynamics with face
+interaction graph networks." arXiv preprint arXiv:2212.03574 (2022).
 
 ## License
 
@@ -154,34 +158,23 @@ Action (BMWK) with the grant number 01ME19003D
 
 ### Implementation
 
-- [x] Simulator
-  - [x] Node edge features
-    - [x] boundary representation: using mesh
-    - [x] normalization: "For all relative spatial feature vectors d, we also
-      also concatenated their norm |d|"
-  - [x] Interaction network
-  - [x] Get rid of torch_geometric
-  - [x] compute graph connectivity
-  - [x] message passing
-  - [ ] get rid of ref_sim
-  - [x] encoder preprocessor
-  - [x] decoder postprocessor
-- [ ] unit test
-  - [x] test_graph_networks
-  - [x] test_trainer
-    - [x] prepare small test dataset
 - [ ] Logger
+
   - [ ] change log prefix
-- [ ] Scene
-  - [ ] Initialize scene in a nicer way
-- [ ] DataLoader
-  - [ ] data generation pipeline
+
+- [x] DataLoader
+
+  - [x] data generation pipeline
   - [ ] Calculate connectivity and features beforehand and store them as dataset
   - [ ] Prepare data in batch mode
+
 - [ ] Trainer
+
   - [ ] Resume training from check points
     as part of the input
+
 - [x] Training
+
   - [x] training noise
   - [x] prepare data
   - [x] normalization: normalized all
@@ -189,4 +182,5 @@ Action (BMWK) with the grant number 01ME19003D
     The loss is computed in the normalized space of the
     targets
   - [ ] upload dataset
+
 - [x] Visualization
