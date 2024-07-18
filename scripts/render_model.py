@@ -32,15 +32,9 @@ import rigid_fall
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument(
-    "--model_path",
-    required=False,
-    default="log/202407181059/models/weights_itr_31000.ckpt",
-)
+parser.add_argument("--model_path", required=True)
 parser.add_argument("--video_path", required=False, default="log/video")
-parser.add_argument(
-    "--off_screen", required=False, action="store_true", default=True
-)
+parser.add_argument("--off_screen", required=False, action="store_true")
 parser.add_argument("--ep_length", required=False, type=int, default=200)
 parser.add_argument("--num_ep", required=False, type=int, default=5)
 
@@ -51,6 +45,12 @@ video_path = args.video_path
 off_screen = args.off_screen
 ep_length = args.ep_length
 num_ep = args.num_ep
+
+video_path = os.path.join(os.getcwd(), video_path)
+
+if off_screen:
+    if not os.path.exists(video_path):
+        os.mkdir(video_path)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
