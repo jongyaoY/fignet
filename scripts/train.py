@@ -20,41 +20,35 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import argparse
+import json
+import os
+
 import torch
 
 from fignet.logger import Logger
 from fignet.simulator import LearnedSimulator
 from fignet.trainer import Trainer
 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--config_file", required=False, default="config/train.json"
+)
+args = parser.parse_args()
+
 if __name__ == "__main__":
 
     latent_dim = 128
 
-    config = {
-        "test_data_path": "datasets/mujoco_moviA_1000.npz",
-        "data_path": "datasets/mujoco_moviA_1000000.npz",
-        "logging_folder": "log",
-        # "log_level": "debug",
-        "log_level": "info",
-        "lr_init": 1e-3,
-        "lr_decay_rate": 0.1,
-        "lr_decay_steps": 1e6,
-        "loss_report_step": 10,
-        "save_model_step": 1000,
-        "eval_step": 1000,
-        # "clip_norm": 1e-2,
-        "rollout_steps": 50,
-        "run_validate": True,
-        "num_eval_rollout": 10,
-        "save_video": True,
-        "warmup_steps": 1000,
-    }
+    with open(os.path.join(os.getcwd(), args.config_file)) as f:
+        config = json.load(f)
+    logger = Logger(config)
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        print("Using cuda")
+        logger.print("Using GPU")
     else:
         device = torch.device("cpu")
-        print("using cpu")
+        logger.print("Using CPU")
     sim = LearnedSimulator(
         mesh_dimensions=3,
         latent_dim=latent_dim,
@@ -64,6 +58,5 @@ if __name__ == "__main__":
         noise_std=1e-4,
         device=device,
     )
-    logger = Logger(config)
     trainer = Trainer(sim=sim, logger=logger, config=config)
     trainer.train()

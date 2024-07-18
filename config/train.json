@@ -1,0 +1,17 @@
+{
+    "test_data_path": "datasets/mujoco_moviA_1000.npz",
+    "data_path": "datasets/mujoco_moviA_1000000.npz",
+    "logging_folder": "log",
+    "log_level": "info",
+    "lr_init": 1e-3,
+    "lr_decay_rate": 0.1,
+    "lr_decay_steps": 1e6,
+    "loss_report_step": 10,
+    "save_model_step": 1000,
+    "eval_step": 1000,
+    "rollout_steps": 50,
+    "run_validate": true,
+    "num_eval_rollout": 10,
+    "save_video": true,
+    "warmup_steps": 1000
+}
