@@ -42,13 +42,12 @@ if __name__ == "__main__":
         "loss_report_step": 10,
         "save_model_step": 1000,
         "eval_step": 1000,
-        # "training_steps": 50,
         # "clip_norm": 1e-2,
         "rollout_steps": 50,
         "run_validate": True,
         "num_eval_rollout": 10,
         "save_video": True,
-        "warmup_steps": 100,
+        "warmup_steps": 1000,
     }
     if torch.cuda.is_available():
         device = torch.device("cuda")

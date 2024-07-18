@@ -1,10 +1,4 @@
-import os
-assets_root = os.path.join(os.path.dirname(__file__), "assets")
-
-def asset_path_completion(path):
-    if os.path.isabs(path):
-        return path
-    else:
-        return os.path.join(assets_root, path)
-
-
+# flake8: noqa
+from rigid_fall.mesh_object import get_all_objects
+from rigid_fall.scene import Scene
+from rigid_fall.utils import choose_objects, init_data, init_sim, rollout
