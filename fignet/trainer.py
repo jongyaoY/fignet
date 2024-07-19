@@ -100,7 +100,7 @@ class Trainer:
         )
         self._clip_norm = config.get("clip_norm")
         self._stop_step = config.get("training_steps")
-        optimizer_to(self._optimizer, self._device)
+
         self._global_step = 0
         self._warm_up = True
         # Evaluation params
@@ -119,7 +119,9 @@ class Trainer:
                 # Load train state
                 if config.get("train_state_file"):
                     state_dict = torch.load(
-                        config.get("train_state_file"),
+                        os.path.join(
+                            os.getcwd(), config.get("train_state_file")
+                        ),
                         map_location=self._device,
                     )
                     self._optimizer.load_state_dict(
@@ -138,16 +140,18 @@ class Trainer:
             except FileNotFoundError as e:
                 self._logger.print(f"{e}", level="warn")
 
-        def list_to_numpy(d):
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    d[k] = list_to_numpy(v)
-                else:
-                    d[k] = np.asarray(v)
-            return d
+        optimizer_to(self._optimizer, self._device)
 
-        if stats is not None:
-            self._stats = list_to_numpy(stats)
+        # def list_to_numpy(d):
+        #     for k, v in d.items():
+        #         if isinstance(v, dict):
+        #             d[k] = list_to_numpy(v)
+        #         else:
+        #             d[k] = np.asarray(v)
+        #     return d
+
+        # if stats is not None:
+        #     self._stats = list_to_numpy(stats)
 
     def fill_normalization_buffer(self):
         """Run some steps to fill the buffer to calculate normalization
@@ -171,6 +175,7 @@ class Trainer:
                 break
 
     def check_normalization_stats(self):
+        """Make sure the stats have no nan"""
         if (
             torch.isnan(self._sim._node_normalizer._std_with_epsilon())
             .all()
@@ -235,29 +240,16 @@ class Trainer:
             )
             for param in self._optimizer.param_groups:
                 param["lr"] = lr_new
-            self._logger.tb.add_scalar("loss/mesh_nodes", m_loss.item(), step)
-            self._logger.tb.add_scalar("loss/obj_nodes", o_loss.item(), step)
-            self._logger.tb.add_scalar("loss/total_loss", loss.item(), step)
 
-            if step % self._loss_report_step == 0:
-                self._logger.print(f"Loss: {loss}.")
-            if step % self._save_model_step == 0:
-                ckpt_path = os.path.join(
-                    self._logger.log_folder,
-                    "models",
-                    "weights_itr_{}.ckpt".format(step),
-                )
-                train_state_path = os.path.join(
-                    self._logger.log_folder,
-                    "models",
-                    "train_state_itr_{}.ckpt".format(step),
-                )
-                self._sim.save(ckpt_path)
-                train_state = dict(
-                    optimizer_state=self._optimizer.state_dict(),
-                    global_train_state={"step": step},
-                )
-                torch.save(train_state, train_state_path)
+            results = {
+                "loss": {
+                    "total": loss.item(),
+                    "mesh": m_loss.item(),
+                    "object": o_loss.item(),
+                }
+            }
+            self.log_results(results, step)
+
             if step % self._eval_step == 0 and self._run_validate:
                 self.validate(step)
 
@@ -267,6 +259,38 @@ class Trainer:
                 )
                 break
             step += 1
+
+    def log_results(self, results: dict, step: int):
+        """Log results after each iteration"""
+
+        self._logger.tb.add_scalar(
+            "loss/mesh_nodes", results["loss"]["mesh"], step
+        )
+        self._logger.tb.add_scalar(
+            "loss/obj_nodes", results["loss"]["object"], step
+        )
+        self._logger.tb.add_scalar(
+            "loss/total_loss", results["loss"]["total"], step
+        )
+        if step % self._loss_report_step == 0:
+            self._logger.print(f"Loss: {results['loss']['total']}.")
+        if step % self._save_model_step == 0:
+            ckpt_path = os.path.join(
+                self._logger.log_folder,
+                "models",
+                "weights_itr_{}.ckpt".format(step),
+            )
+            train_state_path = os.path.join(
+                self._logger.log_folder,
+                "models",
+                "train_state_itr_{}.ckpt".format(step),
+            )
+            self._sim.save(ckpt_path)
+            train_state = dict(
+                optimizer_state=self._optimizer.state_dict(),
+                global_train_state={"step": step},
+            )
+            torch.save(train_state, train_state_path)
 
     def validate(self, step: int):
         """Run the validation loop. Sample multiple rollout and calculate
