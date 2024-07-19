@@ -34,11 +34,13 @@ experimental stage.
 ### Dataset
 
 We generated a dataset similar to the [Kubric MoviA
-dataset](https://github.com/google-research/kubric) but based on Mujoco and with
-three simple meshes (cube, bread, bottle) from
-[robosuite](https://github.com/ARISE-Initiative/robosuite/tree/master/robosuite/models/assets/objects/meshes).
-We randomized objects' initial poses and velocities, while the static
-properties such as mass, size, friction are fixed.
+dataset](https://github.com/google-research/kubric) with the [Mujoco
+simulator](https://mujoco.org/) combined with
+[robosuite](https://github.com/ARISE-Initiative/robosuite/tree/master/robosuite/models/assets/objects/meshes)
+objects.
+We randomized objects' initial poses and velocities, as well as their static
+properties such as mass, friction and restitution. Floor static properties are
+also randomized.
 The dataset contains 50k episodes of length 200 steps and 1M steps in total.
 
 <details>
@@ -50,6 +52,8 @@ The dataset is stored as a .npz file. Each trajectory contains a dictionary
   "pos": (traj_len, n_obj, 3), # xyz
   "quat": (traj_len, n_obj, 4), # xyzw
   "obj_ids": {"obj_name": obj_id},
+  "meta_data": {}, # describes the scene and properties of objects
+  "mujoco_xml": str,
 }
 ```
 
@@ -57,8 +61,8 @@ The dataset is stored as a .npz file. Each trajectory contains a dictionary
 
 ### Node features
 
-For node features, we use: node velocities, binary object kinematic,
-inverse of mass.
+For node features, we use: node velocities,
+inverse of mass, friction, restitution, object kinematic
 
 ### Calculate face connectivity
 
@@ -147,14 +151,6 @@ interaction graph networks." arXiv preprint arXiv:2212.03574 (2022).
 [MIT License](LICENSE)
 
 ## TODOs
-
-### Publish code
-
-- [x] License
-- [ ] Install instructions
-- [ ] Example usage
-- [x] GIF showing the results
-- [x] Acknowledgement
 
 ### Implementation
 
