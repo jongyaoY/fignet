@@ -101,13 +101,42 @@ class Trainer:
         self._clip_norm = config.get("clip_norm")
         self._stop_step = config.get("training_steps")
         optimizer_to(self._optimizer, self._device)
+        self._global_step = 0
+        self._warm_up = True
         # Evaluation params
         self._rollout_steps = config["rollout_steps"]
         self._run_validate = config["run_validate"]
         self._num_eval_rollout = config.get("num_eval_rollout")
         self._save_video = config["save_video"]
-        if config.get("model_path"):
-            self._sim.load(config.get("model_path"))
+        # Load model and continue training if exists
+        if config.get("model_file"):
+            try:
+                self._sim.load(
+                    os.path.join(os.getcwd(), config.get("model_file"))
+                )
+                self._warm_up = False
+                self._logger.print(f"Loaded model {config['model_file']}")
+                # Load train state
+                if config.get("train_state_file"):
+                    state_dict = torch.load(
+                        config.get("train_state_file"),
+                        map_location=self._device,
+                    )
+                    self._optimizer.load_state_dict(
+                        state_dict["optimizer_state"]
+                    )
+                    self._global_step = state_dict["global_train_state"][
+                        "step"
+                    ]
+                    self._logger.print(
+                        f"Resume training from step {self._global_step}"
+                    )
+                else:
+                    self._logger.print(
+                        "Train state file not given, training from step 0"
+                    )
+            except FileNotFoundError as e:
+                self._logger.print(f"{e}", level="warn")
 
         def list_to_numpy(d):
             for k, v in d.items():
@@ -121,6 +150,8 @@ class Trainer:
             self._stats = list_to_numpy(stats)
 
     def fill_normalization_buffer(self):
+        """Run some steps to fill the buffer to calculate normalization
+        stats"""
         warmup_steps = self._warmup_steps
         self._sim.train()
         for i, sample in enumerate(
@@ -135,28 +166,34 @@ class Trainer:
             self._sim.normalize_accelerations(
                 sample["target_acc"]["mesh"].squeeze()[m_mask],
             )
-            if (
-                torch.isnan(self._sim._node_normalizer._std_with_epsilon())
-                .all()
-                .item()
-            ):
-                raise RuntimeError("Nan normalization")
-            if (
-                torch.isnan(self._sim._output_normalizer._std_with_epsilon())
-                .all()
-                .item()
-            ):
-                raise RuntimeError("Nan normalization")
+            self.check_normalization_stats()
             if i > warmup_steps:
                 break
+
+    def check_normalization_stats(self):
+        if (
+            torch.isnan(self._sim._node_normalizer._std_with_epsilon())
+            .all()
+            .item()
+        ):
+            raise RuntimeError("Nan normalization stats")
+        if (
+            torch.isnan(self._sim._output_normalizer._std_with_epsilon())
+            .all()
+            .item()
+        ):
+            raise RuntimeError("Nan normalization stats")
 
     def train(self):
         """Run the training loop"""
         self._sim.to(self._device)
-        self.fill_normalization_buffer()
-        step = 0
+        step = self._global_step
+        if self._warm_up:
+            self.fill_normalization_buffer()
+        else:
+            self.check_normalization_stats()
+
         for sample in tqdm.tqdm(self._dataloaders["train"]):
-            check_nan(sample)
             self._sim.train()
             m_mask = (
                 sample["kinematic"]["mesh"].squeeze() == KinematicType.DYNAMIC
@@ -165,7 +202,7 @@ class Trainer:
                 sample["kinematic"]["object"].squeeze()
                 == KinematicType.DYNAMIC
             )
-
+            # check_nan(self._sim._encoder_preprocessor(sample))
             m_pred_acc, o_pred_acc = self._sim.predict_accelerations(sample)
             check_nan(m_pred_acc)
             check_nan(o_pred_acc)
@@ -210,7 +247,17 @@ class Trainer:
                     "models",
                     "weights_itr_{}.ckpt".format(step),
                 )
+                train_state_path = os.path.join(
+                    self._logger.log_folder,
+                    "models",
+                    "train_state_itr_{}.ckpt".format(step),
+                )
                 self._sim.save(ckpt_path)
+                train_state = dict(
+                    optimizer_state=self._optimizer.state_dict(),
+                    global_train_state={"step": step},
+                )
+                torch.save(train_state, train_state_path)
             if step % self._eval_step == 0 and self._run_validate:
                 self.validate(step)
 
