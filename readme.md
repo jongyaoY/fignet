@@ -74,8 +74,8 @@ is augmented to handle face-face messages
 ## How to Install
 
 ```bash
-git clone #TODO
-cd FigNet
+git clone https://github.com/jongyaoY/fignet
+cd fignet
 pip install -r requirements.txt
 pip install .
 ```
@@ -168,19 +168,5 @@ interaction graph networks." arXiv preprint arXiv:2212.03574 (2022).
   - [ ] Calculate connectivity and features beforehand and store them as dataset
   - [ ] Prepare data in batch mode
 
-- [ ] Trainer
-
-  - [ ] Resume training from check points
-    as part of the input
-
 - [x] Training
-
-  - [x] training noise
-  - [x] prepare data
-  - [x] normalization: normalized all
-    inputs and targets to zero-mean unit-variance.
-    The loss is computed in the normalized space of the
-    targets
   - [ ] upload dataset
-
-- [x] Visualization
