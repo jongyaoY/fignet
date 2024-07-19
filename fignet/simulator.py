@@ -25,7 +25,7 @@ from typing import Dict, Optional
 import torch
 import torch.nn as nn
 
-from fignet.graph_networks import EncodeProcessDecode
+from fignet.graph_networks import EdgeSet, EncodeProcessDecode, Graph
 from fignet.normalization import Normalizer
 from fignet.utils import KinematicType, NodeType, to_tensor
 
@@ -64,7 +64,6 @@ class LearnedSimulator(nn.Module):
         self._node_type_embedding_size = 9
         self._noise_std = noise_std
 
-        # node_dim =
         # self._mesh_dimensions + 2 + self._node_type_embedding_size
         # vel, kin, properties, node_type_embedding
         node_dim = self._mesh_dimensions + property_dim + KinematicType.SIZE
@@ -161,66 +160,63 @@ class LearnedSimulator(nn.Module):
         Returns:
             dict: Preprocessed graph
         """
+        m_features = input["node_features"]["mesh"].squeeze()
+        o_features = input["node_features"]["object"].squeeze()
 
-        input["node_features"]["mesh"] = input["node_features"][
-            "mesh"
-        ].squeeze()
-        input["node_features"]["object"] = input["node_features"][
-            "object"
-        ].squeeze()
+        index_mm = input["index"]["mm"].squeeze()
+        index_mo = input["index"]["mo"].squeeze()
+        index_om = input["index"]["om"].squeeze()
+        index_ff = input["index"]["ff"].squeeze()
+        e_mm = input["edge_features"]["mm"].squeeze()
+        e_mo = input["edge_features"]["mo"].squeeze()
+        e_om = input["edge_features"]["mo"].squeeze()
+        e_ff = input["edge_features"]["ff"].squeeze()
 
-        input["index"]["mm"] = input["index"]["mm"].squeeze()
-        input["index"]["mo"] = input["index"]["mo"].squeeze()
-        input["index"]["om"] = input["index"]["om"].squeeze()
-        input["index"]["ff"] = input["index"]["ff"].squeeze()
         m_node_types = torch.nn.functional.one_hot(
             input["kinematic"]["mesh"].squeeze(), KinematicType.SIZE
         )
         o_node_types = torch.nn.functional.one_hot(
             input["kinematic"]["object"].squeeze(), KinematicType.SIZE
         )
-        input["node_features"]["mesh"] = torch.cat(
-            [input["node_features"]["mesh"], m_node_types], dim=-1
-        )
-        input["node_features"]["object"] = torch.cat(
-            [input["node_features"]["object"], o_node_types], dim=-1
-        )
+        m_features = torch.cat([m_features, m_node_types], dim=-1)
+        o_features = torch.cat([o_features, o_node_types], dim=-1)
+        assert m_features.shape[1] == self._node_dim
+        assert o_features.shape[1] == self._node_dim
         # Normalize node features
-        input["node_features"]["mesh"] = self._node_normalizer(
-            input["node_features"]["mesh"]
-        )
-        input["node_features"]["object"] = self._node_normalizer(
-            input["node_features"]["object"]
-        )
+        m_features = self._node_normalizer(m_features)
+        o_features = self._node_normalizer(o_features)
         # Add noise to velocities
         m_x_noise = torch.normal(
             std=self._noise_std,
             mean=0.0,
-            size=input["node_features"]["mesh"][:, :3].shape,
+            size=m_features[:, :3].shape,
         ).to(self._device)
         o_x_noise = torch.normal(
             std=self._noise_std,
             mean=0.0,
-            size=input["node_features"]["object"][:, :3].shape,
+            size=o_features[:, :3].shape,
         ).to(self._device)
-        input["node_features"]["mesh"][:, :3] + m_x_noise
-        input["node_features"]["object"][:, :3] + o_x_noise
+        m_features[:, :3] = m_features[:, :3] + m_x_noise
+        o_features[:, :3] = o_features[:, :3] + o_x_noise
 
-        input["edge_features"]["mm"] = self._regular_edge_normalizer(
-            input["edge_features"]["mm"].squeeze()
+        e_mm = self._regular_edge_normalizer(e_mm)
+        e_mo = self._regular_edge_normalizer(e_mo)
+        e_om = self._regular_edge_normalizer(e_om)
+        if index_ff.shape[1] > 0:
+            e_ff = self._face_edge_normalizer(e_ff)
+        graph = Graph(
+            node_features={
+                "mesh": m_features,
+                "object": o_features,
+            },
+            edge_sets={
+                "mesh-mesh": EdgeSet(features=e_mm, index=index_mm),
+                "mesh-object": EdgeSet(features=e_mo, index=index_mo),
+                "object-mesh": EdgeSet(features=e_om, index=index_om),
+                "face-face": EdgeSet(features=e_ff, index=index_ff),
+            },
         )
-        input["edge_features"]["mo"] = self._regular_edge_normalizer(
-            input["edge_features"]["mo"].squeeze()
-        )
-        input["edge_features"]["om"] = self._regular_edge_normalizer(
-            input["edge_features"]["om"].squeeze()
-        )
-        if input["index"]["ff"].shape[1] > 0:
-            input["edge_features"]["ff"] = self._face_edge_normalizer(
-                input["edge_features"]["ff"].squeeze()
-            )
-
-        return input
+        return graph
 
     def predict_accelerations(
         self,
@@ -235,19 +231,19 @@ class LearnedSimulator(nn.Module):
             torch.Tensor: Mesh node accelerations
             torch.Tensor: Object node accelerations
         """
-        input = self._encoder_preprocessor(input)
+        graph = self._encoder_preprocessor(input)
 
         m_pred_acc, o_pred_acc = self._encode_process_decode(
-            mesh_n=input["node_features"]["mesh"],
-            obj_n=input["node_features"]["object"],
-            mm_index=input["index"]["mm"],
-            mo_index=input["index"]["mo"],
-            om_index=input["index"]["om"],
-            ff_index=input["index"]["ff"],
-            e_mm=input["edge_features"]["mm"],
-            e_mo=input["edge_features"]["mo"],
-            e_om=input["edge_features"]["om"],
-            e_ff=input["edge_features"]["ff"],
+            mesh_n=graph.node_features["mesh"],
+            obj_n=graph.node_features["object"],
+            mm_index=graph.edge_sets["mesh-mesh"].index,
+            mo_index=graph.edge_sets["mesh-object"].index,
+            om_index=graph.edge_sets["object-mesh"].index,
+            ff_index=graph.edge_sets["face-face"].index,
+            e_mm=graph.edge_sets["mesh-mesh"].features,
+            e_mo=graph.edge_sets["mesh-object"].features,
+            e_om=graph.edge_sets["object-mesh"].features,
+            e_ff=graph.edge_sets["face-face"].features,
         )
         return m_pred_acc, o_pred_acc
 
