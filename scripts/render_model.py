@@ -37,7 +37,8 @@ parser.add_argument("--video_path", required=False, default="log/video")
 parser.add_argument("--off_screen", required=False, action="store_true")
 parser.add_argument("--ep_length", required=False, type=int, default=200)
 parser.add_argument("--num_ep", required=False, type=int, default=5)
-
+parser.add_argument("--height", required=False, type=int, default=240)
+parser.add_argument("--width", required=False, type=int, default=320)
 args = parser.parse_args()
 
 model_path = args.model_path
@@ -45,7 +46,8 @@ video_path = args.video_path
 off_screen = args.off_screen
 ep_length = args.ep_length
 num_ep = args.num_ep
-
+height = args.height
+width = args.width
 video_path = os.path.join(os.getcwd(), video_path)
 
 if off_screen:
@@ -92,10 +94,17 @@ def render_simulator(learned_sim: fignet.LearnedSimulator, off_screen=True):
         mujoco_scene.to_xml(),
         gt_traj[input_seq_length - 1 :, ...],
         obj_id,
+        height=height,
+        width=width,
         off_screen=off_screen,
     )
     screen_prd = fignet.visualize_trajectory(
-        mujoco_scene.to_xml(), pred_traj, obj_id, off_screen=off_screen
+        mujoco_scene.to_xml(),
+        pred_traj,
+        obj_id,
+        height=height,
+        width=width,
+        off_screen=off_screen,
     )
 
     return screen_gt, screen_prd
@@ -121,4 +130,4 @@ if __name__ == "__main__":
             screen = np.concatenate([screens[0], screens[1]], axis=1)
             clip = mpy.ImageSequenceClip(list(screen), fps=60)
             filename = os.path.join(video_path, f"simulated_{ep_i}.gif")
-            clip.write_gif(filename)
+            clip.write_gif(filename, fps=60)

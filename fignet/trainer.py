@@ -108,6 +108,14 @@ class Trainer:
         self._run_validate = config["run_validate"]
         self._num_eval_rollout = config.get("num_eval_rollout")
         self._save_video = config["save_video"]
+        try:
+            self._video_width = config["video_width"]
+        except KeyError:
+            self._video_width = 320
+        try:
+            self._video_height = config["video_height"]
+        except KeyError:
+            self._video_height = 240
         # Load model and continue training if exists
         if config.get("model_file"):
             try:
@@ -158,10 +166,9 @@ class Trainer:
         stats"""
         warmup_steps = self._warmup_steps
         self._sim.train()
+        pbar = tqdm.tqdm(range(warmup_steps))
         for i, sample in enumerate(
-            tqdm.tqdm(
-                self._dataloaders["train"], desc="Filling normalization buffer"
-            )
+            self._dataloaders["train"], desc="Filling normalization buffer"
         ):
             m_mask = (
                 sample["kinematic"]["mesh"].squeeze() == KinematicType.DYNAMIC
@@ -171,6 +178,7 @@ class Trainer:
                 sample["target_acc"]["mesh"].squeeze()[m_mask],
             )
             self.check_normalization_stats()
+            pbar.update(1)
             if i > warmup_steps:
                 break
 
@@ -197,8 +205,12 @@ class Trainer:
             self.fill_normalization_buffer()
         else:
             self.check_normalization_stats()
-
-        for sample in tqdm.tqdm(self._dataloaders["train"]):
+        remaining_steps = len(self._datasets["train"])
+        if self._stop_step is not None:
+            remaining_steps = min(remaining_steps, self._stop_step)
+        pbar = tqdm.tqdm(range(remaining_steps))
+        pbar.update(step)
+        for sample in self._dataloaders["train"]:
             self._sim.train()
             m_mask = (
                 sample["kinematic"]["mesh"].squeeze() == KinematicType.DYNAMIC
@@ -259,6 +271,7 @@ class Trainer:
                 )
                 break
             step += 1
+            pbar.update(1)
 
     def log_results(self, results: dict, step: int):
         """Log results after each iteration"""
@@ -360,10 +373,20 @@ class Trainer:
                 if i == 0 and self._save_video:
                     try:
                         screens_pred = visualize_trajectory(
-                            mujoco_xml, pred_traj, obj_ids, True
+                            mujoco_xml=mujoco_xml,
+                            traj=pred_traj,
+                            obj_ids=obj_ids,
+                            height=self._video_height,
+                            width=self._video_width,
+                            off_screen=True,
                         )
                         screens_gt = visualize_trajectory(
-                            mujoco_xml, gt_poses, obj_ids, True
+                            mujoco_xml=mujoco_xml,
+                            traj=gt_poses,
+                            obj_ids=obj_ids,
+                            height=self._video_height,
+                            width=self._video_width,
+                            off_screen=True,
                         )
                         screens_pred = screens_pred.transpose(0, 3, 1, 2)
                         screens_gt = screens_gt.transpose(0, 3, 1, 2)

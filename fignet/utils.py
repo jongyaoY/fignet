@@ -337,9 +337,15 @@ def plot_graph(
 
 
 def visualize_trajectory(
-    mujoco_xml: str, traj: np.ndarray, obj_ids: dict, off_screen: bool = False
+    mujoco_xml: str,
+    traj: np.ndarray,
+    obj_ids: dict,
+    height: int = 480,
+    width: int = 640,
+    off_screen: bool = False,
 ):
     sim = MjSim.from_xml_string(mujoco_xml)
+
     render_context = MjRenderContext(sim)
     sim.add_render_context(render_context)
     viewer = OpenCVRenderer(sim)
@@ -364,8 +370,8 @@ def visualize_trajectory(
         else:
             im = sim.render(
                 camera_name=viewer.camera_name,
-                height=viewer.height,
-                width=viewer.width,
+                height=height,
+                width=width,
             )
             # write frame to window
             im = np.flip(im, axis=0)
