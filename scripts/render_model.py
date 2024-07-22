@@ -25,7 +25,7 @@ import os
 
 import numpy as np
 import torch
-from moviepy import editor as mpy
+from PIL import Image
 
 import fignet
 import rigid_fall
@@ -128,6 +128,12 @@ if __name__ == "__main__":
         screens = render_simulator(learned_sim, off_screen)
         if off_screen:
             screen = np.concatenate([screens[0], screens[1]], axis=1)
-            clip = mpy.ImageSequenceClip(list(screen), fps=60)
             filename = os.path.join(video_path, f"simulated_{ep_i}.gif")
-            clip.write_gif(filename, fps=60)
+            imgs = [Image.fromarray(img) for img in list(screen)]
+            imgs[0].save(
+                filename,
+                save_all=True,
+                append_images=imgs[1:],
+                duration=10,
+                loop=0,
+            )
