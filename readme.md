@@ -43,6 +43,10 @@ properties such as mass, friction and restitution. Floor static properties are
 also randomized.
 The dataset contains 50k episodes of length 200 steps and 1M steps in total.
 
+<div align="center">
+  <img src="docs/img/ground_truth_0.gif" width="400"/>
+</div>
+
 <details>
    <summary>Dataset format</summary>
 The dataset is stored as a .npz file. Each trajectory contains a dictionary
@@ -107,15 +111,15 @@ python scripts/train.py --config_file=config/train.json
 python scripts/render_model.py --model_path=[model path] --num_ep=[number of episodes] --off_screen --video_path=[video path]
 ```
 
-After training for 1M steps, we generated 3 trajectories with 400 steps each.
+<!-- After training for 1M steps, we generated 3 trajectories with 400 steps each.
 The rendered trajectories are shown below, with top row the ground truth and
-bottom row the simulation.
+bottom row the simulation. -->
 
-<div align="center">
+<!-- <div align="center">
   <img src="docs/img/simulated_0.gif" width="200"/>
   <img src="docs/img/simulated_1.gif" width="200"/>
   <img src="docs/img/simulated_2.gif" width="200"/>
-</div>
+</div> -->
 
 ## Acknowledgments
 
