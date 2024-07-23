@@ -60,6 +60,7 @@ class Trainer:
         self._input_seq_length = 2  # TODO
         data_path = config["data_path"]
         test_data_path = config["test_data_path"]
+        batch_size = config.get("batch_size", 1)
         self._datasets = {}
         self._datasets["train"] = MujocoDataset(
             data_path,
@@ -78,7 +79,7 @@ class Trainer:
         self._dataloaders = {}
         self._dataloaders["train"] = torch.utils.data.DataLoader(
             self._datasets["train"],
-            batch_size=1,
+            batch_size=batch_size,
             shuffle=True,
             collate_fn=collate_fn,
         )

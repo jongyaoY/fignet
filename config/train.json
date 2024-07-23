@@ -1,6 +1,7 @@
 {
     "test_data_path": "datasets/mujoco_moviA_1000.npz",
     "data_path": "datasets/mujoco_moviA_1000000.npz",
+    "batch_size": 1,
     "data_config": {
         "noise_std": 3e-4,
         "connectivity_radius": 0.01

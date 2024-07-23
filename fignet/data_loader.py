@@ -21,7 +21,8 @@
 # SOFTWARE.
 
 
-from typing import Any, List
+from dataclasses import fields
+from typing import List
 
 import numpy as np
 import torch
@@ -29,16 +30,73 @@ import torch.utils
 import tqdm
 
 from fignet.scene import Scene
-from fignet.types import Graph
+from fignet.types import EdgeType, Graph, NodeType
 from fignet.utils import dataclass_to_tensor, dict_to_tensor
 
 
-def collate_fn(batch: List[Any]):
+def collate_fn(batch: List[Graph]):
     """Merge batch of graphs into one graph"""
     if len(batch) == 1:
         return batch[0]
     else:
-        raise NotImplementedError
+        batch_graph = batch.pop(0)
+        m_node_offset = batch_graph.node_sets[NodeType.MESH].kinematic.shape[0]
+        o_node_offset = batch_graph.node_sets[NodeType.OBJECT].kinematic.shape[
+            0
+        ]
+        for graph in batch:
+            for node_typ in graph.node_sets.keys():
+                for field in fields(graph.node_sets[node_typ]):
+                    if field.name == "position":
+                        cat_dim = 1
+                    else:
+                        cat_dim = 0
+                    setattr(
+                        batch_graph.node_sets[node_typ],
+                        field.name,
+                        torch.cat(
+                            [
+                                getattr(
+                                    batch_graph.node_sets[node_typ], field.name
+                                ),
+                                getattr(graph.node_sets[node_typ], field.name),
+                            ],
+                            dim=cat_dim,
+                        ),
+                    )
+            for edge_typ in graph.edge_sets.keys():
+                if (
+                    edge_typ == EdgeType.MESH_MESH
+                    or edge_typ == EdgeType.MESH_MESH
+                ):
+                    graph.edge_sets[edge_typ].index += m_node_offset
+                elif edge_typ == EdgeType.OBJ_MESH:
+                    graph.edge_sets[edge_typ].index[0, :] += o_node_offset
+                    graph.edge_sets[edge_typ].index[1, :] += m_node_offset
+                elif edge_typ == EdgeType.MESH_OBJ:
+                    graph.edge_sets[edge_typ].index[0, :] += m_node_offset
+                    graph.edge_sets[edge_typ].index[1, :] += o_node_offset
+                # Concatenate
+                batch_graph.edge_sets[edge_typ].index = torch.cat(
+                    [
+                        batch_graph.edge_sets[edge_typ].index,
+                        graph.edge_sets[edge_typ].index,
+                    ],
+                    dim=1,
+                )
+                batch_graph.edge_sets[edge_typ].attribute = torch.cat(
+                    [
+                        batch_graph.edge_sets[edge_typ].attribute,
+                        graph.edge_sets[edge_typ].attribute,
+                    ],
+                    dim=0,
+                )
+            m_node_offset += graph.node_sets[NodeType.MESH].kinematic.shape[0]
+            o_node_offset += graph.node_sets[NodeType.OBJECT].kinematic.shape[
+                0
+            ]
+
+        return batch_graph
 
 
 class ToTensor(object):
