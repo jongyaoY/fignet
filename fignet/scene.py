@@ -51,7 +51,7 @@ class Scene:
     connectivity
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict):
         self._mesh_dim = 3
         self._dim_properties = None
         self._num_vertices = 0
@@ -62,11 +62,8 @@ class Scene:
         self._obj_kin = {}
         self._vert_offsets = {}
         self._obj_ids = {}
-        self._connectivity_radius = config.get("connectivity_radius")
-
-        if self._connectivity_radius is None:
-            self._connectivity_radius = 0.005
-
+        self._connectivity_radius = config.get("connectivity_radius", 0.005)
+        self._noise_std = config.get("noise_std", 0.0)
         self._collision_manager = CollisionManager(
             security_margin=self._connectivity_radius
         )
@@ -241,6 +238,7 @@ class Scene:
         self,
         target_poses: Optional[np.ndarray] = None,
         obj_ids: Optional[Dict[str, int]] = None,
+        noise: bool = False,
     ):
         """Encode scene state into graph
 
@@ -249,26 +247,39 @@ class Scene:
             Defaults to None.
             obj_ids (Optional[Dict[str, int]], optional):
             Object indices. Defaults to None.
-
+            noise (bool): Whether to add noise
         Returns:
             Graph: A graph with node/edge features and edge index
         """
         # Get the synchronized verts and com
-        # TODO: add noise
-        verts_seq = self._verts_seq
-        obj_com_seq = self._obj_com_seq
-        # Calculate node/edge features and connectivity
+        noised_verts_seq = self._verts_seq.copy()
+        noised_obj_com_seq = self._obj_com_seq.copy()
+        if noise and self._noise_std:
+            node_type = self._node_types()
+            m_mask = (node_type[0] == KinematicType.DYNAMIC).squeeze()
+            o_mask = (node_type[1] == KinematicType.DYNAMIC).squeeze()
+            noised_verts_seq[:, m_mask, ...] = self._verts_seq[
+                :, m_mask, ...
+            ] + np.random.normal(
+                0, self._noise_std, self._verts_seq[:, m_mask, ...].shape
+            )
+            noised_obj_com_seq[:, o_mask, ...] = self._obj_com_seq[
+                :, o_mask, ...
+            ] + np.random.normal(
+                0, self._noise_std, self._obj_com_seq[:, o_mask, ...].shape
+            )
+            # Calculate node/edge features and connectivity
 
         index, ff_features = self._cal_connectivity()
         edge_features = self._edge_features(
-            obj_com=obj_com_seq[-1, ...],
+            obj_com=noised_obj_com_seq[-1, ...],
             obj_ref_com=self._obj_ref_com,
-            vert_pos=verts_seq[-1, ...],
+            vert_pos=noised_verts_seq[-1, ...],
             vert_ref_pos=self._verts_ref_pos,
             index=index,
         )
         edge_features[EdgeType.FACE_FACE] = ff_features
-        # Calculate target
+        # Calculate target without noise
         cal_target = False
         if target_poses is not None:
             cal_target = True
@@ -286,20 +297,24 @@ class Scene:
                         self._meshes[ob_name], obj_target_pose
                     )
                 else:
-                    vert_target_pos[start:end, ...] = verts_seq[
+                    vert_target_pos[start:end, ...] = self._verts_seq[
                         -1, start:end, :
                     ]
-                    obj_target_pos[ob_id, ...] = obj_com_seq[-1, ob_id, :]
+                    obj_target_pos[ob_id, ...] = self._obj_com_seq[
+                        -1, ob_id, :
+                    ]
             vert_target_acc = (
-                vert_target_pos - 2 * verts_seq[-1, ...] + verts_seq[-2, ...]
+                vert_target_pos
+                - 2 * self._verts_seq[-1, ...]
+                + self._verts_seq[-2, ...]
             )
             obj_target_acc = (
                 obj_target_pos
-                - 2 * obj_com_seq[-1, ...]
-                + obj_com_seq[-2, ...]
+                - 2 * self._obj_com_seq[-1, ...]
+                + self._obj_com_seq[-2, ...]
             )
 
-        node_pos = (verts_seq, obj_com_seq)
+        node_pos = (noised_verts_seq, noised_obj_com_seq)
         node_kin = self._node_types()
         node_prop = self._node_properties()
         if cal_target:

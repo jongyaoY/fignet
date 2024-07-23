@@ -1,6 +1,10 @@
 {
     "test_data_path": "datasets/mujoco_moviA_1000.npz",
     "data_path": "datasets/mujoco_moviA_1000000.npz",
+    "data_config": {
+        "noise_std": 3e-4,
+        "connectivity_radius": 0.01
+    },
     "logging_folder": "log",
     "log_level": "info",
     "lr_init": 1e-3,

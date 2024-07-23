@@ -21,7 +21,6 @@
 # SOFTWARE.
 
 
-import re
 from typing import Any, List
 
 import numpy as np
@@ -40,13 +39,6 @@ def collate_fn(batch: List[Any]):
         return batch[0]
     else:
         raise NotImplementedError
-
-
-default_collate_err_msg_format = (
-    "default_collate: batch must contain tensors, numpy arrays, numbers, "
-    "dicts or lists; found {}"
-)
-np_str_obj_array_pattern = re.compile(r"[SaUO]")
 
 
 class ToTensor(object):
@@ -145,18 +137,25 @@ class MujocoDataset(torch.utils.data.Dataset):
         )
 
         scene_config = dict(self._data[trajectory_idx]["meta_data"].item())
-        try:
-            connectivity_radius = self._config["connectivity_radius"]
+
+        connectivity_radius = self._config.get("connectivity_radius")
+        if connectivity_radius is not None:
             scene_config.update({"connectivity_radius": connectivity_radius})
-        except KeyError:
-            pass
+
+        noise_std = self._config.get("noise_std")
+        if noise_std is not None:
+            scene_config.update({"noise_std": noise_std})
 
         scn = Scene(scene_config)
         scn.synchronize_states(
             obj_poses=poses,
             obj_ids=obj_ids,
         )
-        graph = scn.to_graph(target_poses=target_poses, obj_ids=obj_ids)
+        graph = scn.to_graph(
+            target_poses=target_poses,
+            obj_ids=obj_ids,
+            noise=True,
+        )
 
         if self._transform is not None:
             graph = self._transform(graph)

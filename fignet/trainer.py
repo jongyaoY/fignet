@@ -66,12 +66,14 @@ class Trainer:
             self._input_seq_length,
             mode="sample",
             transform=T.Compose([ToTensor(self._device)]),
+            config=config.get("data_config"),
         )
         self._datasets["val"] = MujocoDataset(
             test_data_path,
             config["rollout_steps"],
             mode="trajectory",
             transform=T.Compose([ToTensor(self._device)]),
+            config=config.get("data_config"),
         )
         self._dataloaders = {}
         self._dataloaders["train"] = torch.utils.data.DataLoader(
@@ -106,16 +108,10 @@ class Trainer:
         # Evaluation params
         self._rollout_steps = config["rollout_steps"]
         self._run_validate = config["run_validate"]
-        self._num_eval_rollout = config.get("num_eval_rollout")
-        self._save_video = config["save_video"]
-        try:
-            self._video_width = config["video_width"]
-        except KeyError:
-            self._video_width = 320
-        try:
-            self._video_height = config["video_height"]
-        except KeyError:
-            self._video_height = 240
+        self._num_eval_rollout = config.get("num_eval_rollout", 10)
+        self._save_video = config.get("save_video", False)
+        self._video_width = config.get("video_width", 320)
+        self._video_height = config.get("video_height", 240)
         # Load model and continue training if exists
         if config.get("model_file"):
             try:
