@@ -21,20 +21,32 @@
 # SOFTWARE.
 
 
+import re
+from typing import Any, List
+
 import numpy as np
 import torch
 import torch.utils
 import tqdm
 
 from fignet.scene import Scene
-from fignet.utils import dict_to_tensor
+from fignet.types import Graph
+from fignet.utils import dataclass_to_tensor, dict_to_tensor
 
 
-def collate_fn(batch_dict):
-    if len(batch_dict) == 1:
-        return batch_dict[0]
+def collate_fn(batch: List[Any]):
+    """Merge batch of graphs into one graph"""
+    if len(batch) == 1:
+        return batch[0]
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
+
+
+default_collate_err_msg_format = (
+    "default_collate: batch must contain tensors, numpy arrays, numbers, "
+    "dicts or lists; found {}"
+)
+np_str_obj_array_pattern = re.compile(r"[SaUO]")
 
 
 class ToTensor(object):
@@ -45,22 +57,26 @@ class ToTensor(object):
 
     def __call__(self, sample):
         # convert numpy arrays to pytorch tensors
-        return dict_to_tensor(sample, self.device)
+        if isinstance(sample, dict):
+            return dict_to_tensor(sample, self.device)
+        elif isinstance(sample, Graph):
+            return dataclass_to_tensor(sample, self.device)
+        else:
+            raise TypeError(f"Cannot convert {type(sample)} to tensor.")
 
 
 class MujocoDataset(torch.utils.data.Dataset):
     """Load Mujoco dataset"""
 
-    def __init__(self, path, input_sequence_length, mode: str, transform=None):
-        # meta_data_path = os.path.join(path, "metadata.json")
-        # with open(meta_data_path) as f:
-        #     self.metadata = json.load(f)
-        # self._scene = Scene(self.metadata["scene_config"])
-        # if mode == "sample":
-        #     data_name = "dataset.npz"
-        # elif mode == "trajectory":
-        #     data_name = "test_dataset.npz"
-        # data_path = os.path.join(path, data_name)
+    def __init__(
+        self,
+        path: str,
+        input_sequence_length: int,
+        mode: str,
+        config: dict = None,
+        transform=None,
+    ):
+
         self._data = list(np.load(path, allow_pickle=True).values())[0]
         self._dimension = self._data[0]["pos"].shape[-1]
         self._target_length = 1
@@ -83,6 +99,10 @@ class MujocoDataset(torch.utils.data.Dataset):
         )
         self._transform = transform
         self._mode = mode
+        if config is not None:
+            self._config = config
+        else:
+            self._config = {}
 
     def __len__(self):
         return self._length
@@ -125,6 +145,11 @@ class MujocoDataset(torch.utils.data.Dataset):
         )
 
         scene_config = dict(self._data[trajectory_idx]["meta_data"].item())
+        try:
+            connectivity_radius = self._config["connectivity_radius"]
+            scene_config.update({"connectivity_radius": connectivity_radius})
+        except KeyError:
+            pass
 
         scn = Scene(scene_config)
         scn.synchronize_states(
@@ -132,19 +157,7 @@ class MujocoDataset(torch.utils.data.Dataset):
             obj_ids=obj_ids,
         )
         graph = scn.to_graph(target_poses=target_poses, obj_ids=obj_ids)
-        # graph = ToTensor()(graph) data = HeteroData() data['mesh'].x =
-        # graph['m_x'] data['mesh'].y = graph['m_y'] data['object'].x =
-        # graph['o_x'] data['object'].y = graph['o_y'] data['mesh', 'regular',
-        # 'mesh'].edge_index = graph['index']['mm'] data['mesh', 'regular',
-        # 'object'].edge_index = graph['index']['mo'] data['object', 'regular',
-        # 'mesh'].edge_index = graph['index']['om']
-        # # data['mesh', 'face', 'mesh'].edge_index = graph['index']['ff']
 
-        # data['mesh', 'regular', 'mesh'].edge_attr =
-        # graph['edge_features']['mm'] data['mesh', 'regular',
-        # 'object'].edge_attr = graph['edge_features']['mo'] data['object',
-        # 'regular', 'mesh'].edge_attr = graph['edge_features']['om']
-        # data['mesh', 'face', 'mesh'].edge_attr = graph['edge_features']['ff']
         if self._transform is not None:
             graph = self._transform(graph)
         return graph
@@ -170,6 +183,11 @@ class MujocoDataset(torch.utils.data.Dataset):
         mujoco_xml = str(self._data[trajectory_idx]["mujoco_xml"])
         scene_config = dict(self._data[trajectory_idx]["meta_data"].item())
 
+        try:
+            connectivity_radius = self._config["connectivity_radius"]
+            scene_config.update({"connectivity_radius": connectivity_radius})
+        except KeyError:
+            pass
         positions = self._data[trajectory_idx]["pos"][
             start:end
         ]  # (seq_len, n_obj, 3) input sequence

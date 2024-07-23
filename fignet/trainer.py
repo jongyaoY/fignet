@@ -33,9 +33,8 @@ from fignet.data_loader import MujocoDataset, ToTensor, collate_fn
 from fignet.logger import Logger
 from fignet.scene import Scene
 from fignet.simulator import LearnedSimulator
+from fignet.types import KinematicType, NodeType
 from fignet.utils import (
-    KinematicType,
-    check_nan,
     optimizer_to,
     rollout,
     rot_diff,
@@ -79,6 +78,7 @@ class Trainer:
             self._datasets["train"],
             batch_size=1,
             shuffle=True,
+            collate_fn=collate_fn,
         )
         self._dataloaders["val"] = torch.utils.data.DataLoader(
             self._datasets["val"],
@@ -150,32 +150,22 @@ class Trainer:
 
         optimizer_to(self._optimizer, self._device)
 
-        # def list_to_numpy(d):
-        #     for k, v in d.items():
-        #         if isinstance(v, dict):
-        #             d[k] = list_to_numpy(v)
-        #         else:
-        #             d[k] = np.asarray(v)
-        #     return d
-
-        # if stats is not None:
-        #     self._stats = list_to_numpy(stats)
-
     def fill_normalization_buffer(self):
         """Run some steps to fill the buffer to calculate normalization
         stats"""
         warmup_steps = self._warmup_steps
         self._sim.train()
-        pbar = tqdm.tqdm(range(warmup_steps))
-        for i, sample in enumerate(
-            self._dataloaders["train"], desc="Filling normalization buffer"
-        ):
+        pbar = tqdm.tqdm(
+            range(warmup_steps), desc="Filling normalization buffer"
+        )
+        for i, sample in enumerate(self._dataloaders["train"]):
             m_mask = (
-                sample["kinematic"]["mesh"].squeeze() == KinematicType.DYNAMIC
-            )
+                sample.node_sets[NodeType.MESH].kinematic
+                == KinematicType.DYNAMIC
+            ).squeeze()
             self._sim._encoder_preprocessor(sample)
             self._sim.normalize_accelerations(
-                sample["target_acc"]["mesh"].squeeze()[m_mask],
+                sample.node_sets[NodeType.MESH].target[m_mask]
             )
             self.check_normalization_stats()
             pbar.update(1)
@@ -208,35 +198,24 @@ class Trainer:
         remaining_steps = len(self._datasets["train"])
         if self._stop_step is not None:
             remaining_steps = min(remaining_steps, self._stop_step)
-        pbar = tqdm.tqdm(range(remaining_steps))
+        pbar = tqdm.tqdm(range(remaining_steps), desc="Training")
         pbar.update(step)
         for sample in self._dataloaders["train"]:
             self._sim.train()
             m_mask = (
-                sample["kinematic"]["mesh"].squeeze() == KinematicType.DYNAMIC
-            )
-            o_mask = (
-                sample["kinematic"]["object"].squeeze()
+                sample.node_sets[NodeType.MESH].kinematic
                 == KinematicType.DYNAMIC
-            )
-            # check_nan(self._sim._encoder_preprocessor(sample))
-            m_pred_acc, o_pred_acc = self._sim.predict_accelerations(sample)
-            check_nan(m_pred_acc)
-            check_nan(o_pred_acc)
+            ).squeeze()
+
+            m_pred_acc, _ = self._sim.predict_accelerations(sample)
             m_target_acc = self._sim.normalize_accelerations(
-                sample["target_acc"]["mesh"].squeeze()[m_mask],
-            )
-            o_target_acc = self._sim.normalize_accelerations(
-                sample["target_acc"]["object"].squeeze()[o_mask],
-            )
-            m_loss = torch.nn.functional.mse_loss(
-                m_pred_acc[m_mask], m_target_acc
-            )
-            o_loss = torch.nn.functional.mse_loss(
-                o_pred_acc[o_mask], o_target_acc
+                sample.node_sets[NodeType.MESH].target[m_mask]
             )
 
-            loss = o_loss + m_loss
+            loss = torch.nn.functional.mse_loss(
+                m_pred_acc[m_mask], m_target_acc
+            )
+
             self._optimizer.zero_grad()
             loss.backward()
             if self._clip_norm is not None:
@@ -256,8 +235,6 @@ class Trainer:
             results = {
                 "loss": {
                     "total": loss.item(),
-                    "mesh": m_loss.item(),
-                    "object": o_loss.item(),
                 }
             }
             self.log_results(results, step)
@@ -275,13 +252,6 @@ class Trainer:
 
     def log_results(self, results: dict, step: int):
         """Log results after each iteration"""
-
-        self._logger.tb.add_scalar(
-            "loss/mesh_nodes", results["loss"]["mesh"], step
-        )
-        self._logger.tb.add_scalar(
-            "loss/obj_nodes", results["loss"]["object"], step
-        )
         self._logger.tb.add_scalar(
             "loss/total_loss", results["loss"]["total"], step
         )

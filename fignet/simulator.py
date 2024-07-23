@@ -25,9 +25,10 @@ from typing import Dict, Optional
 import torch
 import torch.nn as nn
 
-from fignet.graph_networks import EdgeSet, EncodeProcessDecode, Graph
+from fignet.graph_networks import EncodeProcessDecode
 from fignet.normalization import Normalizer
-from fignet.utils import KinematicType, NodeType, to_tensor
+from fignet.types import EdgeType, Graph, KinematicType, NodeType
+from fignet.utils import to_tensor
 
 
 class LearnedSimulator(nn.Module):
@@ -150,7 +151,7 @@ class LearnedSimulator(nn.Module):
 
     def _encoder_preprocessor(
         self,
-        input: Dict[str, torch.Tensor],
+        input: Graph,
     ):
         """Preprocess input including normalization and adding noise
 
@@ -160,62 +161,55 @@ class LearnedSimulator(nn.Module):
         Returns:
             dict: Preprocessed graph
         """
-        m_features = input["node_features"]["mesh"].squeeze()
-        o_features = input["node_features"]["object"].squeeze()
+        seq_len = input.node_sets[NodeType.MESH].position.shape[0]
+        m_features = []
+        o_features = []
+        for i in range(seq_len):
+            if i + 1 < seq_len:
+                m_vel = (
+                    input.node_sets[NodeType.MESH].position[i + 1, ...]
+                    - input.node_sets[NodeType.MESH].position[i, ...]
+                )
+                o_vel = (
+                    input.node_sets[NodeType.OBJECT].position[i + 1, ...]
+                    - input.node_sets[NodeType.OBJECT].position[i, ...]
+                )
+                m_features.append(m_vel)
+                o_features.append(o_vel)
+        m_features.append(input.node_sets[NodeType.MESH].properties)
+        m_features.append(input.node_sets[NodeType.MESH].kinematic)
+        o_features.append(input.node_sets[NodeType.OBJECT].properties)
+        o_features.append(input.node_sets[NodeType.OBJECT].kinematic)
+        m_features = torch.cat(m_features, dim=-1)
+        o_features = torch.cat(o_features, dim=-1)
 
-        index_mm = input["index"]["mm"].squeeze()
-        index_mo = input["index"]["mo"].squeeze()
-        index_om = input["index"]["om"].squeeze()
-        index_ff = input["index"]["ff"].squeeze()
-        e_mm = input["edge_features"]["mm"].squeeze()
-        e_mo = input["edge_features"]["mo"].squeeze()
-        e_om = input["edge_features"]["mo"].squeeze()
-        e_ff = input["edge_features"]["ff"].squeeze()
-
-        m_node_types = torch.nn.functional.one_hot(
-            input["kinematic"]["mesh"].squeeze(), KinematicType.SIZE
-        )
-        o_node_types = torch.nn.functional.one_hot(
-            input["kinematic"]["object"].squeeze(), KinematicType.SIZE
-        )
-        m_features = torch.cat([m_features, m_node_types], dim=-1)
-        o_features = torch.cat([o_features, o_node_types], dim=-1)
-        assert m_features.shape[1] == self._node_dim
-        assert o_features.shape[1] == self._node_dim
         # Normalize node features
         m_features = self._node_normalizer(m_features)
         o_features = self._node_normalizer(o_features)
-        # Add noise to velocities
-        m_x_noise = torch.normal(
-            std=self._noise_std,
-            mean=0.0,
-            size=m_features[:, :3].shape,
-        ).to(self._device)
-        o_x_noise = torch.normal(
-            std=self._noise_std,
-            mean=0.0,
-            size=o_features[:, :3].shape,
-        ).to(self._device)
-        m_features[:, :3] = m_features[:, :3] + m_x_noise
-        o_features[:, :3] = o_features[:, :3] + o_x_noise
 
-        e_mm = self._regular_edge_normalizer(e_mm)
-        e_mo = self._regular_edge_normalizer(e_mo)
-        e_om = self._regular_edge_normalizer(e_om)
-        if index_ff.shape[1] > 0:
-            e_ff = self._face_edge_normalizer(e_ff)
-        graph = Graph(
-            node_features={
-                "mesh": m_features,
-                "object": o_features,
-            },
-            edge_sets={
-                "mesh-mesh": EdgeSet(features=e_mm, index=index_mm),
-                "mesh-object": EdgeSet(features=e_mo, index=index_mo),
-                "object-mesh": EdgeSet(features=e_om, index=index_om),
-                "face-face": EdgeSet(features=e_ff, index=index_ff),
-            },
-        )
+        graph = {
+            "mesh_n": m_features,
+            "obj_n": o_features,
+            "om_index": input.edge_sets[EdgeType.OBJ_MESH].index,
+            "mo_index": input.edge_sets[EdgeType.MESH_OBJ].index,
+            "mm_index": input.edge_sets[EdgeType.MESH_MESH].index,
+            "ff_index": input.edge_sets[EdgeType.FACE_FACE].index,
+            "e_mm": self._regular_edge_normalizer(
+                input.edge_sets[EdgeType.MESH_MESH].attribute
+            ),
+            "e_mo": self._regular_edge_normalizer(
+                input.edge_sets[EdgeType.MESH_OBJ].attribute
+            ),
+            "e_om": self._regular_edge_normalizer(
+                input.edge_sets[EdgeType.OBJ_MESH].attribute
+            ),
+        }
+        if graph["ff_index"].shape[1] > 0:
+            graph["e_ff"] = self._face_edge_normalizer(
+                input.edge_sets[EdgeType.FACE_FACE].attribute
+            )
+        else:
+            graph["e_ff"] = input.edge_sets[EdgeType.FACE_FACE].attribute
         return graph
 
     def predict_accelerations(
@@ -233,18 +227,7 @@ class LearnedSimulator(nn.Module):
         """
         graph = self._encoder_preprocessor(input)
 
-        m_pred_acc, o_pred_acc = self._encode_process_decode(
-            mesh_n=graph.node_features["mesh"],
-            obj_n=graph.node_features["object"],
-            mm_index=graph.edge_sets["mesh-mesh"].index,
-            mo_index=graph.edge_sets["mesh-object"].index,
-            om_index=graph.edge_sets["object-mesh"].index,
-            ff_index=graph.edge_sets["face-face"].index,
-            e_mm=graph.edge_sets["mesh-mesh"].features,
-            e_mo=graph.edge_sets["mesh-object"].features,
-            e_om=graph.edge_sets["object-mesh"].features,
-            e_ff=graph.edge_sets["face-face"].features,
-        )
+        m_pred_acc, o_pred_acc = self._encode_process_decode(**graph)
         return m_pred_acc, o_pred_acc
 
     def save(self, path: str = "model.pt"):

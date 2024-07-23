@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import enum
+import dataclasses
 import time
 from typing import Union
 
@@ -33,18 +33,6 @@ from pytorch3d.ops import corresponding_points_alignment
 from robosuite.utils import OpenCVRenderer
 from robosuite.utils.binding_utils import MjRenderContext, MjSim
 from scipy.spatial.transform import Rotation as R
-
-
-class KinematicType(enum.IntEnum):
-    STATIC = 0
-    DYNAMIC = 1
-    SIZE = 2
-
-
-class NodeType(enum.IntEnum):
-    MESH = 0
-    OBJECT = 1
-    SIZE = 9
 
 
 def check_nan(data):
@@ -196,6 +184,24 @@ def mesh_com_sequence(mesh: trimesh.Trimesh, poses: np.ndarray):
     return np.asarray(com_seq)
 
 
+def dataclass_to_tensor(d, device=None):
+
+    if isinstance(d, np.ndarray) or isinstance(d, torch.Tensor):
+        return to_tensor(d, device=device)
+    elif dataclasses.is_dataclass(d):
+        for f in dataclasses.fields(d):
+            setattr(
+                d,
+                f.name,
+                dataclass_to_tensor(getattr(d, f.name), device=device),
+            )
+        return d
+    elif isinstance(d, dict):
+        for k, v in d.items():
+            d[k] = dataclass_to_tensor(v, device=device)
+        return d
+
+
 def dict_to_tensor(d: dict, device=None):
     new_dict = dict()
     for k, v in d.items():
@@ -277,7 +283,7 @@ def rollout(
         range(nsteps - init_obj_poses.shape[0]), desc="sampling rollout"
     ):
         graph = scene.to_graph()
-        graph = to_tensor(graph, device)
+        graph = dataclass_to_tensor(graph, device)
         m_pred_acc, o_pred_acc = sim.predict_accelerations(graph)
         m_pred_acc = sim.denormalize_accelerations(m_pred_acc)
         o_pred_acc = sim.denormalize_accelerations(o_pred_acc)

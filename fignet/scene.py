@@ -27,8 +27,15 @@ import trimesh
 import trimesh.creation
 
 from fignet.collision import CollisionManager
-from fignet.utils import (
+from fignet.types import (
+    Edge,
+    EdgeType,
+    Graph,
     KinematicType,
+    NodeFeature,
+    NodeType,
+)
+from fignet.utils import (
     match_meshes,
     mesh_com,
     mesh_com_sequence,
@@ -244,15 +251,14 @@ class Scene:
             Object indices. Defaults to None.
 
         Returns:
-            Dict: A graph with node/edge features and edge index
+            Graph: A graph with node/edge features and edge index
         """
         # Get the synchronized verts and com
+        # TODO: add noise
         verts_seq = self._verts_seq
         obj_com_seq = self._obj_com_seq
         # Calculate node/edge features and connectivity
-        m_x, o_x = self._node_features(
-            verts_seq=verts_seq, com_seq=obj_com_seq
-        )
+
         index, ff_features = self._cal_connectivity()
         edge_features = self._edge_features(
             obj_com=obj_com_seq[-1, ...],
@@ -261,7 +267,7 @@ class Scene:
             vert_ref_pos=self._verts_ref_pos,
             index=index,
         )
-        edge_features["ff"] = ff_features
+        edge_features[EdgeType.FACE_FACE] = ff_features
         # Calculate target
         cal_target = False
         if target_poses is not None:
@@ -292,25 +298,38 @@ class Scene:
                 - 2 * obj_com_seq[-1, ...]
                 + obj_com_seq[-2, ...]
             )
-        # Auxiliary info
-        pos = {
-            "mesh": verts_seq,
-            "object": obj_com_seq,
-        }
-        node_types = self._node_types()
-        # Form the graph
-        graph = {
-            "node_features": {"mesh": m_x, "object": o_x},
-            "index": index,
-            "edge_features": edge_features,
-            "kinematic": {"mesh": node_types[0], "object": node_types[1]},
-            "pos": pos,
-        }
+
+        node_pos = (verts_seq, obj_com_seq)
+        node_kin = self._node_types()
+        node_prop = self._node_properties()
         if cal_target:
-            target_acc = {"mesh": vert_target_acc, "object": obj_target_acc}
-            target_pos = {"mesh": vert_target_pos, "object": obj_target_pos}
-            graph["target_pos"] = target_pos
-            graph["target_acc"] = target_acc
+            node_target = (vert_target_acc, obj_target_acc)
+        m_features = NodeFeature(
+            position=node_pos[0],
+            kinematic=node_kin[0],
+            properties=node_prop[0],
+            target=node_target[0] if cal_target else None,
+        )
+        o_features = NodeFeature(
+            position=node_pos[1],
+            kinematic=node_kin[1],
+            properties=node_prop[1],
+            target=node_target[1] if cal_target else None,
+        )
+        graph = Graph()
+        graph.node_sets = {
+            NodeType.MESH: m_features,
+            NodeType.OBJECT: o_features,
+        }
+        for edge_type in EdgeType:
+            graph.edge_sets.update(
+                {
+                    edge_type: Edge(
+                        attribute=edge_features[edge_type],
+                        index=index[edge_type],
+                    )
+                }
+            )
 
         return graph
 
@@ -418,6 +437,17 @@ class Scene:
                 m_node_types[start:end, :] = KinematicType.STATIC
                 o_node_types[obj_id, :] = KinematicType.STATIC
         return m_node_types, o_node_types
+
+    def _node_properties(self):
+        mesh_prop = np.empty((self._num_vertices, self._dim_properties))
+        obj_prop = np.empty((self._num_obj, self._dim_properties))
+        for name, obj_id in self._obj_ids.items():
+            start, end = self._vert_index(name)
+            mesh_prop[start:end, :] = np.repeat(
+                self._object_property_array(name), end - start, axis=0
+            )
+            obj_prop[obj_id, :] = self._object_property_array(name)
+        return mesh_prop, obj_prop
 
     def _node_features(self, verts_seq: np.ndarray, com_seq: np.ndarray):
         """Calculate and return node features
@@ -555,10 +585,10 @@ class Scene:
             ff_index[1] = np.asarray(receivers, dtype=np.int64)
 
         index = {
-            "mm": mm_index,
-            "mo": mo_index,
-            "om": mo_index[[1, 0]],
-            "ff": ff_index,
+            EdgeType.MESH_MESH: mm_index,
+            EdgeType.MESH_OBJ: mo_index,
+            EdgeType.OBJ_MESH: mo_index[[1, 0]],
+            EdgeType.FACE_FACE: ff_index,
         }
         return index, np.asarray(ff_features)
 
@@ -586,15 +616,15 @@ class Scene:
         for edge_type, edge_index in index.items():
             s_index = edge_index[0]
             r_index = edge_index[1]
-            if edge_type == "mm":
+            if edge_type == EdgeType.MESH_MESH:
                 d_rs = vert_pos[s_index, ...] - vert_pos[r_index, ...]
                 d_rs_ref = (
                     vert_ref_pos[s_index, ...] - vert_ref_pos[r_index, ...]
                 )
-            elif edge_type == "mo":
+            elif edge_type == EdgeType.MESH_OBJ:
                 d_rs = vert_pos[s_index] - obj_com[r_index]
                 d_rs_ref = vert_ref_pos[s_index] - obj_ref_com[r_index]
-            elif edge_type == "om":
+            elif edge_type == EdgeType.OBJ_MESH:
                 d_rs = obj_com[s_index] - vert_pos[r_index]
                 d_rs_ref = obj_ref_com[s_index] - vert_ref_pos[r_index]
             else:
