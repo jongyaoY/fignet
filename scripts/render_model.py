@@ -33,6 +33,11 @@ import rigid_fall
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--model_path", required=True)
+parser.add_argument(
+    "--split_video",
+    action="store_true",
+    help="store ground truth and simulation videos separately",
+)
 parser.add_argument("--video_path", required=False, default="log/video")
 parser.add_argument("--off_screen", required=False, action="store_true")
 parser.add_argument("--ep_length", required=False, type=int, default=200)
@@ -48,8 +53,9 @@ ep_length = args.ep_length
 num_ep = args.num_ep
 height = args.height
 width = args.width
+split_video = args.split_video
 video_path = os.path.join(os.getcwd(), video_path)
-
+duration = 10
 if off_screen:
     if not os.path.exists(video_path):
         os.mkdir(video_path)
@@ -118,7 +124,6 @@ if __name__ == "__main__":
         nmessage_passing_steps=10,
         nmlp_layers=2,
         mlp_hidden_dim=latent_dim,
-        noise_std=1e-4,
         device=device,
     )
     learned_sim.load(model_path)
@@ -127,13 +132,39 @@ if __name__ == "__main__":
     for ep_i in range(num_ep):
         screens = render_simulator(learned_sim, off_screen)
         if off_screen:
-            screen = np.concatenate([screens[0], screens[1]], axis=1)
-            filename = os.path.join(video_path, f"simulated_{ep_i}.gif")
-            imgs = [Image.fromarray(img) for img in list(screen)]
-            imgs[0].save(
-                filename,
-                save_all=True,
-                append_images=imgs[1:],
-                duration=10,
-                loop=0,
-            )
+            if split_video:
+                filename_gt = os.path.join(
+                    video_path, f"ground_truth_{ep_i}.gif"
+                )
+                filename_sim = os.path.join(
+                    video_path, f"simulation_{ep_i}.gif"
+                )
+                imgs = [Image.fromarray(img) for img in list(screens[0])]
+                imgs[0].save(
+                    filename_gt,
+                    save_all=True,
+                    append_images=imgs[1:],
+                    duration=duration,
+                    loop=0,
+                )
+                imgs = [Image.fromarray(img) for img in list(screens[1])]
+                imgs[0].save(
+                    filename_sim,
+                    save_all=True,
+                    append_images=imgs[1:],
+                    duration=duration,
+                    loop=0,
+                )
+            else:
+                screen = np.concatenate([screens[0], screens[1]], axis=1)
+                filename = os.path.join(
+                    video_path, f"ground_truth_simulation_{ep_i}.gif"
+                )
+                imgs = [Image.fromarray(img) for img in list(screen)]
+                imgs[0].save(
+                    filename,
+                    save_all=True,
+                    append_images=imgs[1:],
+                    duration=duration,
+                    loop=0,
+                )

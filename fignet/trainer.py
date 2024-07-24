@@ -51,7 +51,6 @@ class Trainer:
         sim: LearnedSimulator,
         config: dict,
         logger: Logger,
-        stats: dict = None,
     ):
         self._device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"

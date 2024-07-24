@@ -41,8 +41,13 @@ def init_trainer():
     config = {
         "test_data_path": "datasets/mujoco_moviA_1000.npz",
         "data_path": "datasets/mujoco_moviA_1000000.npz",
-        # "model_file": "log_test/202407191432/models/weights_itr_50.ckpt",
-        # "train_state_file": "log_test/202407191432/models/train_state_itr_50.ckpt",
+        "data_config": {
+            "noise_std": 3e-4,
+            "connectivity_radius": 0.01,
+        },
+        "batch_size": 2,
+        # "model_file": "log_test/202407221053/models/weights_itr_40.ckpt",
+        # "train_state_file": "log_test/202407221053/models/train_state_itr_40.ckpt",
         "logging_folder": "log_test",
         "log_level": "info",
         "lr_init": 1e-3,
@@ -51,10 +56,10 @@ def init_trainer():
         "loss_report_step": 1,
         "save_model_step": 10,
         "eval_step": 10,
-        "training_steps": 20,
+        "training_steps": 50,
         # "clip_norm": 1e-2,
         "rollout_steps": 50,
-        "run_validate": False,
+        "run_validate": True,
         "num_eval_rollout": 1,
         "save_video": True,
         "warmup_steps": 10,
@@ -72,7 +77,6 @@ def init_trainer():
         nmessage_passing_steps=10,
         nmlp_layers=2,
         mlp_hidden_dim=latent_dim,
-        noise_std=1e-4,
         device=device,
     )
     trainer = Trainer(sim=sim, logger=logger, config=config)

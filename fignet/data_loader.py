@@ -27,11 +27,12 @@ from typing import List
 import numpy as np
 import torch
 import torch.utils
-import tqdm
 
 from fignet.scene import Scene
 from fignet.types import EdgeType, Graph, NodeType
 from fignet.utils import dataclass_to_tensor, dict_to_tensor
+
+# from torch.utils.data import DistributedSampler
 
 
 def collate_fn(batch: List[Graph]):
@@ -259,13 +260,24 @@ class MujocoDataset(torch.utils.data.Dataset):
         return traj, mujoco_xml, scene_config
 
 
-def get_normalization_stats(dataset):
-    stats = {
-        "vel": {"mean": np.zeros(3), "std": np.zeros(3)},
-        "acc": {"mean": np.zeros(3), "std": np.zeros(3)},
-    }
-    for sample in tqdm.tqdm(dataset, desc="Calculating normalization stats"):
-        stats["vel"]["mean"] += torch.mean(sample["m_x"][:, :3], axis=0)
-        stats["acc"] += torch.mean(sample["m_y"][:, :3], axis=0)
-    stats["vel"] = stats["vel"] / len(dataset)
-    stats["acc"] = stats["acc"] / len(dataset)
+# def get_data_loader(
+#     dataset: MujocoDataset, batch_size: int, device, num_workers: int = 0
+# ):
+#     if device == torch.device("cuda"):
+#         sampler = DistributedSampler(dataset, shuffle=True)
+#         return torch.utils.data.DataLoader(
+#             dataset=dataset,
+#             sampler=sampler,
+#             batch_size=batch_size,
+#             pin_memory=True,
+#             collate_fn=collate_fn,
+#             num_workers=num_workers,
+#         )
+#     else:
+#         return torch.utils.data.DataLoader(
+#             dataset=dataset,
+#             batch_size=batch_size,
+#             pin_memory=True,
+#             collate_fn=collate_fn,
+#             num_workers=num_workers,
+#         )

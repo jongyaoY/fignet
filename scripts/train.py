@@ -55,7 +55,6 @@ if __name__ == "__main__":
         nmessage_passing_steps=10,
         nmlp_layers=2,
         mlp_hidden_dim=latent_dim,
-        noise_std=1e-4,
         device=device,
     )
     trainer = Trainer(sim=sim, logger=logger, config=config)

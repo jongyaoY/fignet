@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from collections import namedtuple
 from typing import List, Optional
 
 import torch
@@ -28,9 +27,6 @@ import torch.nn as nn
 from torch_scatter import scatter
 
 from fignet.utils import to_tensor
-
-EdgeSet = namedtuple("EdgeSet", ["features", "index"])
-Graph = namedtuple("Graph", ["node_features", "edge_sets"])
 
 
 def build_mlp(

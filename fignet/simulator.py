@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import Dict, Optional
+from typing import Dict
 
 import torch
 import torch.nn as nn
@@ -28,7 +28,6 @@ import torch.nn as nn
 from fignet.graph_networks import EncodeProcessDecode
 from fignet.normalization import Normalizer
 from fignet.types import EdgeType, Graph, KinematicType, NodeType
-from fignet.utils import to_tensor
 
 
 class LearnedSimulator(nn.Module):
@@ -40,7 +39,6 @@ class LearnedSimulator(nn.Module):
         nmlp_layers: int,
         mlp_hidden_dim: int,
         property_dim: int = 5,
-        noise_std: float = 1e-5,
         device="cpu",
     ):
         """Initializer
@@ -51,8 +49,7 @@ class LearnedSimulator(nn.Module):
             nmessage_passing_steps (int): Number of message passing steps
             nmlp_layers (int): Number of MLP layers mlp_hidden_dim (int):
             Hidden MLP dimension
-            noise_std (float, optional): Velocity noise during training.
-            Defaults to 1e-5. device (str, optional): Defaults to "cpu".
+            device (str, optional): Defaults to "cpu".
         """
         super(LearnedSimulator, self).__init__()
 
@@ -61,12 +58,8 @@ class LearnedSimulator(nn.Module):
 
         # Initialize the EncodeProcessDecode
         self._num_node_types = len(NodeType)
-        # !Not used
-        self._node_type_embedding_size = 9
-        self._noise_std = noise_std
 
-        # self._mesh_dimensions + 2 + self._node_type_embedding_size
-        # vel, kin, properties, node_type_embedding
+        # vel, kin, properties
         node_dim = self._mesh_dimensions + property_dim + KinematicType.SIZE
         norm_edge_dim = (
             self._mesh_dimensions + 1
@@ -74,9 +67,7 @@ class LearnedSimulator(nn.Module):
         face_edge_dim = (
             7 * (self._mesh_dimensions + 1) + 2 * self._mesh_dimensions
         )  # [drs, |drs|, dsi, |dsi|, dri, |dri|, nr, ns]
-        self._node_type_embedding = nn.Embedding(
-            self._num_node_types, self._node_type_embedding_size, device=device
-        )
+
         # Initialize the gnn pipeline
         self._encode_process_decode = EncodeProcessDecode(
             mesh_n_dim_in=node_dim,
@@ -128,7 +119,6 @@ class LearnedSimulator(nn.Module):
     def normalize_accelerations(
         self,
         accelerations: torch.Tensor,
-        stats: Optional[dict] = None,
     ):
         """Normalize target acceleration, since the loss is calculated in the
         normalized space. If no statistics is provided, mean and std are
@@ -142,12 +132,7 @@ class LearnedSimulator(nn.Module):
         Returns:
             torch.Tensor: Normalized target acceleration
         """
-        if stats is None:
-            return self._output_normalizer(accelerations, self.training)
-        else:
-            return (
-                accelerations - to_tensor(stats["mean"], self._device)
-            ) / to_tensor(stats["std"], self._device)
+        return self._output_normalizer(accelerations, self.training)
 
     def _encoder_preprocessor(
         self,
