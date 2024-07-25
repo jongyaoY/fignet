@@ -238,11 +238,10 @@ class Trainer:
             if step % self._eval_step == 0 and self._run_validate:
                 self.validate(step)
 
-            if self._stop_step is not None and step >= self._stop_step:
-                self._logger.print(
-                    f"Stopping training after reaching {step} step"
-                )
+            if step >= remaining_steps:
+                self._logger.print("Finished Training")
                 break
+
             step += 1
             pbar.update(1)
 
