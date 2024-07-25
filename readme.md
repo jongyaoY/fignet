@@ -44,7 +44,9 @@ also randomized.
 The dataset contains 50k episodes of length 200 steps and 1M steps in total.
 
 <div align="center">
-  <img src="docs/img/ground_truth_0.gif" width="400"/>
+  <img src="docs/img/ground_truth_3.gif" width="200"/>
+  <img src="docs/img/ground_truth_1.gif" width="200"/>
+  <img src="docs/img/ground_truth_2.gif" width="200"/>
 </div>
 
 <details>
@@ -111,15 +113,15 @@ python scripts/train.py --config_file=config/train.json
 python scripts/render_model.py --model_path=[model path] --num_ep=[number of episodes] --off_screen --video_path=[video path]
 ```
 
-<!-- After training for 1M steps, we generated 3 trajectories with 400 steps each.
+After training for 410k steps, we generated 3 rollouts of 200 steps.
 The rendered trajectories are shown below, with top row the ground truth and
-bottom row the simulation. -->
+bottom row the simulation.
 
-<!-- <div align="center">
-  <img src="docs/img/simulated_0.gif" width="200"/>
-  <img src="docs/img/simulated_1.gif" width="200"/>
-  <img src="docs/img/simulated_2.gif" width="200"/>
-</div> -->
+<div align="center">
+  <img src="docs/img/ground_truth_simulation_0.gif" width="200"/>
+  <img src="docs/img/ground_truth_simulation_3.gif" width="200"/>
+  <img src="docs/img/ground_truth_simulation_2.gif" width="200"/>
+</div>
 
 ## Acknowledgments
 
@@ -165,8 +167,9 @@ interaction graph networks." arXiv preprint arXiv:2212.03574 (2022).
 - [x] DataLoader
 
   - [x] data generation pipeline
+  - [ ] Noise: only dynamic nodes?
   - [ ] Calculate connectivity and features beforehand and store them as dataset
-  - [ ] Prepare data in batch mode
+  - [x] Prepare data in batch mode
 
 - [x] Training
   - [ ] upload dataset
