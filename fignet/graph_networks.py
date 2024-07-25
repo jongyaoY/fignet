@@ -359,8 +359,8 @@ class InteractionNetwork(nn.Module):
             edge_function = eval("self." + edge_type + "_edge_fn")
             return edge_function(latent_n)
         elif x_i.ndim == 3:
-            v_s = x_i.view(x_i.shape[0] * x_i.shape[1], -1)
-            v_r = x_j.view(
+            v_r = x_i.view(x_i.shape[0] * x_i.shape[1], -1)
+            v_s = x_j.view(
                 x_j.shape[0] * x_j.shape[1], -1
             )  # (n_edge * 3, n_feature)
             e_sr = edge_features.view(
