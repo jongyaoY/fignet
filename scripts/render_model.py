@@ -38,6 +38,11 @@ parser.add_argument(
     action="store_true",
     help="store ground truth and simulation videos separately",
 )
+parser.add_argument(
+    "--only_ground_truth",
+    action="store_true",
+    help="generate only ground truth videos",
+)
 parser.add_argument("--video_path", required=False, default="log/video")
 parser.add_argument("--off_screen", required=False, action="store_true")
 parser.add_argument("--ep_length", required=False, type=int, default=200)
@@ -50,17 +55,23 @@ model_path = args.model_path
 video_path = args.video_path
 off_screen = args.off_screen
 ep_length = args.ep_length
+only_ground_truth = args.only_ground_truth
 num_ep = args.num_ep
 height = args.height
 width = args.width
 split_video = args.split_video
 video_path = os.path.join(os.getcwd(), video_path)
-duration = 10
+duration = 1
+skip_frame = 10
 if off_screen:
     if not os.path.exists(video_path):
         os.mkdir(video_path)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if only_ground_truth:
+    split_video = True
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+device = torch.device("cpu")
 
 
 def render_simulator(learned_sim: fignet.LearnedSimulator, off_screen=True):
@@ -88,14 +99,6 @@ def render_simulator(learned_sim: fignet.LearnedSimulator, off_screen=True):
     obj_id = dict(gt_data["obj_id"].item())
     meta_data = dict(gt_data["meta_data"].item())
     gt_traj = np.concatenate([gt_data["pos"], gt_data["quat"]], axis=2)
-    pred_traj = fignet.rollout(
-        learned_sim,
-        gt_traj[:input_seq_length, ...],
-        obj_id,
-        fignet.Scene(meta_data),
-        device,
-        ep_length,
-    )
     screen_gt = fignet.visualize_trajectory(
         mujoco_scene.to_xml(),
         gt_traj[input_seq_length - 1 :, ...],
@@ -104,14 +107,26 @@ def render_simulator(learned_sim: fignet.LearnedSimulator, off_screen=True):
         width=width,
         off_screen=off_screen,
     )
-    screen_prd = fignet.visualize_trajectory(
-        mujoco_scene.to_xml(),
-        pred_traj,
-        obj_id,
-        height=height,
-        width=width,
-        off_screen=off_screen,
-    )
+    if not only_ground_truth:
+        pred_traj = fignet.rollout(
+            learned_sim,
+            gt_traj[:input_seq_length, ...],
+            obj_id,
+            fignet.Scene(meta_data),
+            device,
+            ep_length,
+        )
+
+        screen_prd = fignet.visualize_trajectory(
+            mujoco_scene.to_xml(),
+            pred_traj,
+            obj_id,
+            height=height,
+            width=width,
+            off_screen=off_screen,
+        )
+    else:
+        screen_prd = None
 
     return screen_gt, screen_prd
 
@@ -139,7 +154,10 @@ if __name__ == "__main__":
                 filename_sim = os.path.join(
                     video_path, f"simulation_{ep_i}.gif"
                 )
-                imgs = [Image.fromarray(img) for img in list(screens[0])]
+                imgs = [
+                    Image.fromarray(img)
+                    for img in list(screens[0])[::skip_frame]
+                ]
                 imgs[0].save(
                     filename_gt,
                     save_all=True,
@@ -147,20 +165,26 @@ if __name__ == "__main__":
                     duration=duration,
                     loop=0,
                 )
-                imgs = [Image.fromarray(img) for img in list(screens[1])]
-                imgs[0].save(
-                    filename_sim,
-                    save_all=True,
-                    append_images=imgs[1:],
-                    duration=duration,
-                    loop=0,
-                )
+                if not only_ground_truth:
+                    imgs = [
+                        Image.fromarray(img)
+                        for img in list(screens[1])[::skip_frame]
+                    ]
+                    imgs[0].save(
+                        filename_sim,
+                        save_all=True,
+                        append_images=imgs[1:],
+                        duration=duration,
+                        loop=0,
+                    )
             else:
                 screen = np.concatenate([screens[0], screens[1]], axis=1)
                 filename = os.path.join(
                     video_path, f"ground_truth_simulation_{ep_i}.gif"
                 )
-                imgs = [Image.fromarray(img) for img in list(screen)]
+                imgs = [
+                    Image.fromarray(img) for img in list(screen)[::skip_frame]
+                ]
                 imgs[0].save(
                     filename,
                     save_all=True,
