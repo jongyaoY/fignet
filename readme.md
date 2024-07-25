@@ -44,9 +44,9 @@ also randomized.
 The dataset contains 50k episodes of length 200 steps and 1M steps in total.
 
 <div align="center">
-  <img src="docs/img/ground_truth_3.gif" width="200"/>
-  <img src="docs/img/ground_truth_1.gif" width="200"/>
-  <img src="docs/img/ground_truth_2.gif" width="200"/>
+  <img src="docs/img/ground_truth_3.gif" width="230"/>
+  <img src="docs/img/ground_truth_1.gif" width="230"/>
+  <img src="docs/img/ground_truth_2.gif" width="230"/>
 </div>
 
 <details>
@@ -118,9 +118,9 @@ The rendered trajectories are shown below, with top row the ground truth and
 bottom row the simulation.
 
 <div align="center">
-  <img src="docs/img/ground_truth_simulation_0.gif" width="200"/>
-  <img src="docs/img/ground_truth_simulation_3.gif" width="200"/>
-  <img src="docs/img/ground_truth_simulation_2.gif" width="200"/>
+  <img src="docs/img/ground_truth_simulation_0.gif" width="230"/>
+  <img src="docs/img/ground_truth_simulation_1.gif" width="230"/>
+  <img src="docs/img/ground_truth_simulation_2.gif" width="230"/>
 </div>
 
 ## Acknowledgments
