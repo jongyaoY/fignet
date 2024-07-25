@@ -22,6 +22,7 @@
 
 import pytest
 import torch
+from torch_scatter import scatter
 
 from fignet.graph_networks import EncodeProcessDecode
 
@@ -91,3 +92,49 @@ def test_encode_process_decode(model_data):
     output = model(**data)
     assert output[0].shape == (n_mnode, mesh_dim)
     assert output[1].shape == (n_onode, mesh_dim)
+
+
+def test_message_passing(model_data):
+    model, data = model_data
+    mesh_n = model._m_encoder(data["mesh_n"])
+    ff_index = data["ff_index"]
+    e_ff = model._eff_encoder(data["e_ff"]).view(data["e_ff"].shape[0], 3, -1)
+    gnn = model._processor.gnn_stacks[0]
+
+    e_ff_updated = gnn.message(
+        mesh_n[ff_index[0]], mesh_n[ff_index[1]], "ff", e_ff
+    )
+
+    latent = []
+    x_s = mesh_n[ff_index[0]]  # (num_edge, 3, 128)
+    x_r = mesh_n[ff_index[1]]  # (num_edge, 3, 128)
+
+    for i in range(ff_index.shape[2]):
+        latent.append(
+            torch.hstack([e_ff[:, i, :], x_s[:, i, :], x_r[:, i, :]])
+        )
+    latent = torch.cat(latent, dim=-1)
+    e_ff_expected = gnn.ff_edge_fn(latent).view(e_ff.shape[0], 3, -1)
+
+    assert torch.allclose(e_ff_expected, e_ff_updated)
+    ff_r_index = ff_index[1].view(
+        ff_index.shape[1] * ff_index.shape[2]
+    )  # receiver indices
+    aggr_ff = scatter(
+        e_ff_updated.view(e_ff_updated.shape[0] * e_ff_updated.shape[1], -1),
+        ff_r_index,
+        dim=0,
+        dim_size=mesh_n.shape[0],
+        reduce="sum",
+    )
+
+    aggr_ff_expected = torch.zeros_like(mesh_n)
+    num_edges = ff_index[1].shape[0]
+    num_verts = ff_index[1].shape[1]
+    for edge_n in range(num_edges):
+        for i in range(num_verts):
+            r_node_id = ff_index[1, edge_n, i]
+            r_node_message = e_ff_updated[edge_n, i]
+            aggr_ff_expected[r_node_id] += r_node_message
+
+    assert torch.allclose(aggr_ff, aggr_ff_expected)
