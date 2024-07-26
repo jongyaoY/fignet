@@ -113,7 +113,7 @@ python scripts/train.py --config_file=config/train.json
 python scripts/render_model.py --model_path=[model path] --num_ep=[number of episodes] --off_screen --video_path=[video path]
 ```
 
-After training for 410k steps, we generated 3 rollouts of 200 steps.
+After training for 500k steps, we generated 3 rollouts of 200 steps.
 The rendered trajectories are shown below, with top row the ground truth and
 bottom row the simulation.
 
