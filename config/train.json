@@ -1,7 +1,7 @@
 {
     "test_data_path": "datasets/mujoco_moviA_1000.npz",
     "data_path": "datasets/mujoco_moviA_1000000.npz",
-    "batch_size": 1,
+    "batch_size": 32,
     "data_config": {
         "noise_std": 3e-4,
         "connectivity_radius": 0.01
@@ -11,12 +11,13 @@
     "lr_init": 1e-3,
     "lr_decay_rate": 0.1,
     "lr_decay_steps": 1e6,
-    "loss_report_step": 10,
+    "loss_report_step": 1000,
     "save_model_step": 1000,
     "eval_step": 1000,
     "rollout_steps": 50,
     "run_validate": true,
     "num_eval_rollout": 10,
     "save_video": true,
-    "warmup_steps": 1000
+    "training_steps": 1e6,
+    "warmup_steps": 50
 }

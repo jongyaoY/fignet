@@ -65,7 +65,7 @@ class Trainer:
             data_path,
             self._input_seq_length,
             mode="sample",
-            transform=T.Compose([ToTensor(self._device)]),
+            transform=T.Compose([ToTensor()]),
             config=config.get("data_config"),
         )
         self._datasets["val"] = MujocoDataset(
@@ -80,6 +80,8 @@ class Trainer:
             self._datasets["train"],
             batch_size=batch_size,
             shuffle=True,
+            num_workers=16,
+            pin_memory=True,
             collate_fn=collate_fn,
         )
         self._dataloaders["val"] = torch.utils.data.DataLoader(
@@ -101,7 +103,7 @@ class Trainer:
             self._sim.parameters(), lr=self._lr_init
         )
         self._clip_norm = config.get("clip_norm")
-        self._stop_step = config.get("training_steps")
+        self._stop_step = int(config.get("training_steps"))
 
         self._global_step = 0
         self._warm_up = True
@@ -159,6 +161,8 @@ class Trainer:
                 sample.node_sets[NodeType.MESH].kinematic
                 == KinematicType.DYNAMIC
             ).squeeze()
+            sample = ToTensor(self._device)(sample)
+
             self._sim._encoder_preprocessor(sample)
             self._sim.normalize_accelerations(
                 sample.node_sets[NodeType.MESH].target[m_mask]
@@ -191,68 +195,74 @@ class Trainer:
             self.fill_normalization_buffer()
         else:
             self.check_normalization_stats()
-        remaining_steps = len(self._datasets["train"])
+        remaining_steps = len(self._dataloaders["train"])
         if self._stop_step is not None:
-            remaining_steps = min(remaining_steps, self._stop_step)
+            remaining_steps = max(remaining_steps, self._stop_step)
         pbar = tqdm.tqdm(range(remaining_steps), desc="Training")
         pbar.update(step)
-        for sample in self._dataloaders["train"]:
-            self._sim.train()
-            m_mask = (
-                sample.node_sets[NodeType.MESH].kinematic
-                == KinematicType.DYNAMIC
-            ).squeeze()
+        stop_training = False
+        epoch_i = 0
+        while not stop_training:
+            self._logger.print(f"Training on epoch {epoch_i}")
+            for sample in self._dataloaders["train"]:
 
-            m_pred_acc, _ = self._sim.predict_accelerations(sample)
-            m_target_acc = self._sim.normalize_accelerations(
-                sample.node_sets[NodeType.MESH].target[m_mask]
-            )
+                self._optimizer.zero_grad()
+                self._sim.train()
 
-            loss = torch.nn.functional.mse_loss(
-                m_pred_acc[m_mask], m_target_acc
-            )
+                loss = self.cal_loss(sample)
 
-            self._optimizer.zero_grad()
-            loss.backward()
-            if self._clip_norm is not None:
-                torch.nn.utils.clip_grad.clip_grad_norm(
-                    self._sim.parameters(), self._clip_norm
+                loss.backward()
+                if self._clip_norm is not None:
+                    torch.nn.utils.clip_grad.clip_grad_norm(
+                        self._sim.parameters(), self._clip_norm
+                    )
+                self._optimizer.step()
+
+                lr_new = (
+                    self._lr_init
+                    * self._lr_decay_rate ** (step / self._lr_decay_steps)
+                    + 1e-6
                 )
-            self._optimizer.step()
+                for param in self._optimizer.param_groups:
+                    param["lr"] = lr_new
 
-            lr_new = (
-                self._lr_init
-                * self._lr_decay_rate ** (step / self._lr_decay_steps)
-                + 1e-6
-            )
-            for param in self._optimizer.param_groups:
-                param["lr"] = lr_new
-
-            results = {
-                "loss": {
-                    "total": loss.item(),
+                results = {
+                    "loss": {
+                        "total": loss.item(),
+                    }
                 }
-            }
-            self.log_results(results, step)
+                self.log_results(results, step)
 
-            if step % self._eval_step == 0 and self._run_validate:
-                self.validate(step)
+                if step % self._eval_step == 0 and self._run_validate:
+                    self.validate(step)
 
-            if step >= remaining_steps:
-                self._logger.print("Finished Training")
-                break
+                pbar.update(1)
+                if step + 1 >= remaining_steps:
+                    stop_training = True
+                    self._logger.print("Finished Training")
+                    break
+                step += 1
+            epoch_i += 1
 
-            step += 1
-            pbar.update(1)
+        pbar.close()
+        self.save_model(step, hard_save=True)
 
-    def log_results(self, results: dict, step: int):
-        """Log results after each iteration"""
-        self._logger.tb.add_scalar(
-            "loss/total_loss", results["loss"]["total"], step
+    def cal_loss(self, sample):
+        m_mask = (
+            sample.node_sets[NodeType.MESH].kinematic == KinematicType.DYNAMIC
+        ).squeeze()
+        sample = ToTensor(self._device)(sample)
+        m_pred_acc, _ = self._sim.predict_accelerations(sample)
+        m_target_acc = self._sim.normalize_accelerations(
+            sample.node_sets[NodeType.MESH].target[m_mask]
         )
-        if step % self._loss_report_step == 0:
-            self._logger.print(f"Loss: {results['loss']['total']}.")
-        if step % self._save_model_step == 0:
+
+        loss = torch.nn.functional.mse_loss(m_pred_acc[m_mask], m_target_acc)
+        return loss
+
+    def save_model(self, step: int, hard_save: bool = False):
+        """Save weights and train states"""
+        if (step % self._save_model_step == 0) or hard_save:
             ckpt_path = os.path.join(
                 self._logger.log_folder,
                 "models",
@@ -270,6 +280,15 @@ class Trainer:
             )
             torch.save(train_state, train_state_path)
 
+    def log_results(self, results: dict, step: int):
+        """Log results after each iteration"""
+        self._logger.tb.add_scalar(
+            "loss/total_loss", results["loss"]["total"], step
+        )
+        if step % self._loss_report_step == 0:
+            self._logger.print(f"Loss: {results['loss']['total']}.")
+        self.save_model(step)
+
     def validate(self, step: int):
         """Run the validation loop. Sample multiple rollout and calculate
         translational and rotational errors on the last step.
@@ -285,6 +304,11 @@ class Trainer:
         onestep_t_errors = []
         onestep_r_errors = []
         for i, data in enumerate(self._dataloaders["val"]):
+            if (
+                self._num_eval_rollout is not None
+                and i >= self._num_eval_rollout
+            ):
+                break
             # Get initial states
             traj = data[0]
             mujoco_xml = data[1]
@@ -370,11 +394,6 @@ class Trainer:
                     except Exception as e:
                         self._logger.print(e, level="warn")
 
-            if (
-                self._num_eval_rollout is not None
-                and i >= self._num_eval_rollout
-            ):
-                break
         if len(rollout_t_errors) > 0:
             self._logger.tb.add_scalar(
                 "val/rollout_translation_error",
