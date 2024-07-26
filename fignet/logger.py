@@ -26,7 +26,7 @@ import os
 import sys
 import time
 
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 
 class Logger:
@@ -35,13 +35,18 @@ class Logger:
         time_str = datetime.datetime.fromtimestamp(time.time()).strftime(
             "%Y%m%d%H%M"
         )
-        prefix_str = time_str
         self.tb_prefix = ""
-
+        if config.get("continue_log_from") is None:
+            prefix_str = time_str
+        else:
+            prefix_str = config["continue_log_from"]
+            if not os.path.exists(
+                os.path.join(self.config["logging_folder"], prefix_str)
+            ):
+                prefix_str = time_str
         self.log_folder = os.path.join(
             self.config["logging_folder"], prefix_str
         )
-
         self.create_folder_structure()
         self.setup_loggers()
 
