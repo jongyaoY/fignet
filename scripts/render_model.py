@@ -69,9 +69,8 @@ if off_screen:
 
 if only_ground_truth:
     split_video = True
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def render_simulator(learned_sim: fignet.LearnedSimulator, off_screen=True):
