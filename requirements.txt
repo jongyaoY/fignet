@@ -1,15 +1,15 @@
 matplotlib==3.5.1
-moviepy==1.0.0
+# moviepy==1.0.0
 numpy==1.23.1
 pytest==7.4.0
 pytorch3d==0.7.4
 robosuite==1.4.1
 scipy==1.8.0
 setuptools==44.0.0
-tensorboardX==1.8
+# tensorboardX==1.8
 torch==1.12.1
 torch_scatter==2.1.2
 torchvision==0.13.0
 tqdm==4.63.0
 trimesh==3.21.7
-hpp-fcl==2.4.4
+hpp-fcl==2.4.5
