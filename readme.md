@@ -83,6 +83,20 @@ is augmented to handle face-face messages
 
 ## How to Install
 
+### 1. Install Dependencies
+
+Install opengl related libraries
+
+```bash
+apt update && apt install ffmpeg libsm6 libxext6  -y
+apt install libglfw3 libglfw3-dev -y
+```
+
+Install pytorch3d depending on your CUDA and python version as documented in
+[install instruction](https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md)
+
+### 2. Install other dependencies and fignet
+
 ```bash
 git clone https://github.com/jongyaoY/fignet
 cd fignet
@@ -92,7 +106,7 @@ pip install .
 
 ## How to train
 
-> Generate dataset
+### 1. Generate dataset
 
 ```bash
 python scripts/generate_dataset.py
@@ -101,19 +115,19 @@ python scripts/generate_dataset.py
 --total_steps=1000 --data_path=datasets # For testing
 ```
 
-> Run the training loop
+### 2. Run the training
 
 ```bash
 python scripts/train.py --config_file=config/train.json
 ```
 
-> Render rollout
+### 3. Render rollout
 
 ```bash
 python scripts/render_model.py --model_path=[model path] --num_ep=[number of episodes] --off_screen --video_path=[video path]
 ```
 
-After training for 500k steps, we generated 3 rollouts of 200 steps.
+After training for about 300k steps with batch size 32, we generated rollouts of 200 steps.
 The rendered trajectories are shown below, with top row the ground truth and
 bottom row the simulation.
 
