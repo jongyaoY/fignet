@@ -45,6 +45,7 @@ parser.add_argument(
 )
 parser.add_argument("--video_path", required=False, default="log/video")
 parser.add_argument("--off_screen", required=False, action="store_true")
+parser.add_argument("--use_cuda", required=False, action="store_true")
 parser.add_argument("--ep_length", required=False, type=int, default=200)
 parser.add_argument("--num_ep", required=False, type=int, default=5)
 parser.add_argument("--height", required=False, type=int, default=240)
@@ -55,6 +56,7 @@ model_path = args.model_path
 video_path = args.video_path
 off_screen = args.off_screen
 ep_length = args.ep_length
+use_cuda = args.use_cuda
 only_ground_truth = args.only_ground_truth
 num_ep = args.num_ep
 height = args.height
@@ -70,7 +72,9 @@ if off_screen:
 if only_ground_truth:
     split_video = True
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device(
+    "cuda" if torch.cuda.is_available() and use_cuda else "cpu"
+)
 
 
 def render_simulator(learned_sim: fignet.LearnedSimulator, off_screen=True):
