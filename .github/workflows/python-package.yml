@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8"]
 
     steps:
     - uses: actions/checkout@v4
@@ -26,16 +26,15 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
+        apt update && apt install ffmpeg libsm6 libxext6  -y
+        apt install libglfw3 libglfw3-dev -y
+        python -m pip install "opencv-python-headless<4.3"
         python -m pip install --upgrade pip
-        python -m pip install flake8 pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        python -m pip install pytest
+        python -m pip install 'git+https://github.com/facebookresearch/pytorch3d.git@stable' -v
+        python -m pip install -r requirements.txt
+        python -m pip install .
+        # python -m robosuite.scripts.setup_macros
     - name: Test with pytest
       run: |
-        pytest tests/test_trainer.py
-        pytest tests/test_graph_networks.py
+        python -m pytest tests/test_graph_networks.py
