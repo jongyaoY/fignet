@@ -31,6 +31,7 @@ jobs:
         python -m pip install "opencv-python-headless<4.3"
         python -m pip install --upgrade pip
         python -m pip install pytest
+        python -m pip install torch==1.12.0
         python -m pip install 'git+https://github.com/facebookresearch/pytorch3d.git@stable' -v
         python -m pip install -r requirements.txt
         python -m pip install .
