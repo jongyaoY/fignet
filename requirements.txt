@@ -4,8 +4,9 @@ robosuite==1.4.1
 scipy==1.8.0
 tqdm==4.63.0
 trimesh==3.21.7
-# eigenpy==3.8.0
-# hpp-fcl==2.4.5
 numpy==1.23.1
 tensorboard==2.13.0
 dacite==1.8.1
+pyyaml
+moviepy
+Pillow==9.5.0

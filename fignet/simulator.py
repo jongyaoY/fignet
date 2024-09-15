@@ -41,6 +41,7 @@ class LearnedSimulator(nn.Module):
         input_seq_length: int = 3,
         property_dim: int = 5,
         device="cpu",
+        leave_out_mm: bool = False,
     ):
         """Initializer
 
@@ -51,12 +52,13 @@ class LearnedSimulator(nn.Module):
             nmlp_layers (int): Number of MLP layers mlp_hidden_dim (int):
             Hidden MLP dimension
             device (str, optional): Defaults to "cpu".
+            leave_out_mm (bool): Ignore mm edges
         """
         super(LearnedSimulator, self).__init__()
 
         self._mesh_dimensions = mesh_dimensions
         assert self._mesh_dimensions == 3
-
+        self._leave_out_mm = leave_out_mm
         # Initialize the EncodeProcessDecode
         self._num_node_types = len(NodeType)
 
@@ -85,6 +87,7 @@ class LearnedSimulator(nn.Module):
             nmessage_passing_steps=nmessage_passing_steps,
             nmlp_layers=nmlp_layers,
             mlp_hidden_dim=mlp_hidden_dim,
+            leave_out_mm=leave_out_mm,
         )
         self._node_dim = node_dim
         self._num_nodes = 0
@@ -182,11 +185,7 @@ class LearnedSimulator(nn.Module):
             "obj_n": o_features,
             "om_index": input.edge_sets[EdgeType.OBJ_MESH].index,
             "mo_index": input.edge_sets[EdgeType.MESH_OBJ].index,
-            "mm_index": input.edge_sets[EdgeType.MESH_MESH].index,
             "ff_index": input.edge_sets[EdgeType.FACE_FACE].index,
-            "e_mm": self._regular_edge_normalizer(
-                input.edge_sets[EdgeType.MESH_MESH].attribute
-            ),
             "e_mo": self._regular_edge_normalizer(
                 input.edge_sets[EdgeType.MESH_OBJ].attribute
             ),
@@ -194,6 +193,15 @@ class LearnedSimulator(nn.Module):
                 input.edge_sets[EdgeType.OBJ_MESH].attribute
             ),
         }
+        if not self._leave_out_mm:
+            graph["mm_index"] = input.edge_sets[EdgeType.MESH_MESH].index
+            graph["e_mm"] = self._regular_edge_normalizer(
+                input.edge_sets[EdgeType.MESH_MESH].attribute
+            )
+        else:
+            graph["mm_index"] = None
+            graph["e_mm"] = None
+
         if graph["ff_index"].shape[1] > 0:
             graph["e_ff"] = self._face_edge_normalizer(
                 input.edge_sets[EdgeType.FACE_FACE].attribute

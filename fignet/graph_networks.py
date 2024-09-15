@@ -132,6 +132,7 @@ class InteractionNetwork(nn.Module):
         fedge_out: int,
         nmlp_layers: int,
         mlp_hidden_dim: int,
+        leave_out_mm: bool,
     ):
         """Single layer of the face interaction network
 
@@ -151,7 +152,11 @@ class InteractionNetwork(nn.Module):
         self.mesh_node_fn = nn.Sequential(
             *[
                 build_mlp(
-                    nnode_in + 2 * nedge_in + fedge_in,
+                    (
+                        nnode_in + 2 * nedge_in + fedge_in
+                        if not leave_out_mm
+                        else nnode_in + nedge_in + fedge_in
+                    ),
                     [mlp_hidden_dim for _ in range(nmlp_layers)],
                     nnode_out,
                 ),
@@ -169,16 +174,20 @@ class InteractionNetwork(nn.Module):
             ]
         )
         # Edge MLP
-        self.mm_edge_fn = nn.Sequential(
-            *[
-                build_mlp(
-                    nnode_in + nnode_in + nedge_in,
-                    [mlp_hidden_dim for _ in range(nmlp_layers)],
-                    nedge_out,
-                ),
-                nn.LayerNorm(nedge_out),
-            ]
-        )
+        if not leave_out_mm:
+            self.mm_edge_fn = nn.Sequential(
+                *[
+                    build_mlp(
+                        nnode_in + nnode_in + nedge_in,
+                        [mlp_hidden_dim for _ in range(nmlp_layers)],
+                        nedge_out,
+                    ),
+                    nn.LayerNorm(nedge_out),
+                ]
+            )
+        else:
+            self.mm_edge_fn = None
+
         self.mo_edge_fn = nn.Sequential(
             *[
                 build_mlp(
@@ -263,12 +272,13 @@ class InteractionNetwork(nn.Module):
         # Calculate messages
         s_dim = 0
         r_dim = 1
-        e_mm_updated = self.message(
-            torch.index_select(mesh_n, 0, mm_index[s_dim]),
-            torch.index_select(mesh_n, 0, mm_index[r_dim]),
-            "mm",
-            e_mm,
-        )
+        if e_mm is not None:
+            e_mm_updated = self.message(
+                torch.index_select(mesh_n, 0, mm_index[s_dim]),
+                torch.index_select(mesh_n, 0, mm_index[r_dim]),
+                "mm",
+                e_mm,
+            )
         e_mo_updated = self.message(
             torch.index_select(mesh_n, 0, mo_index[s_dim]),
             torch.index_select(obj_n, 0, mo_index[r_dim]),
@@ -294,13 +304,14 @@ class InteractionNetwork(nn.Module):
                 e_ff,
             )
         # Aggregate
-        aggr_mm = scatter(
-            e_mm_updated,
-            mm_index[r_dim],
-            dim=0,
-            dim_size=mesh_n.shape[0],
-            reduce="sum",
-        )
+        if e_mm is not None:
+            aggr_mm = scatter(
+                e_mm_updated,
+                mm_index[r_dim],
+                dim=0,
+                dim_size=mesh_n.shape[0],
+                reduce="sum",
+            )
         aggr_mo = scatter(
             e_mo_updated,
             mo_index[r_dim],
@@ -330,17 +341,22 @@ class InteractionNetwork(nn.Module):
                 reduce="sum",
             )
         else:
-            aggr_ff = to_tensor(torch.zeros_like(aggr_mm))
+            aggr_ff = to_tensor(torch.zeros_like(mesh_n))
         # Update nodes
         obj_n_updated = self.obj_node_fn(torch.cat([obj_n, aggr_mo], dim=-1))
-        mesh_n_updated = self.mesh_node_fn(
-            torch.cat([mesh_n, aggr_om, aggr_mm, aggr_ff], dim=-1)
-        )
+        if e_mm is not None:
+            mesh_n_updated = self.mesh_node_fn(
+                torch.cat([mesh_n, aggr_om, aggr_mm, aggr_ff], dim=-1)
+            )
+        else:
+            mesh_n_updated = self.mesh_node_fn(
+                torch.cat([mesh_n, aggr_om, aggr_ff], dim=-1)
+            )
 
         return (
             mesh_n + mesh_n_updated,
             obj_n + obj_n_updated,
-            e_mm + e_mm_updated,
+            e_mm + e_mm_updated if e_mm is not None else None,
             e_mo + e_mo_updated,
             e_om + e_om_updated,
             e_ff + e_ff_updated if e_ff is not None else None,
@@ -413,6 +429,7 @@ class Processor(nn.Module):
         nmessage_passing_steps: int,
         nmlp_layers: int,
         mlp_hidden_dim: int,
+        leave_out_mm: bool,
     ):
         """Initializer
 
@@ -441,6 +458,7 @@ class Processor(nn.Module):
                     fedge_out=fedge_out,
                     nmlp_layers=nmlp_layers,
                     mlp_hidden_dim=mlp_hidden_dim,
+                    leave_out_mm=leave_out_mm,
                 )
                 for _ in range(nmessage_passing_steps)
             ]
@@ -570,6 +588,7 @@ class EncodeProcessDecode(nn.Module):
         nmessage_passing_steps: int,
         nmlp_layers: int,
         mlp_hidden_dim: int,
+        leave_out_mm: bool = False,
     ):
         """Initializer
 
@@ -584,8 +603,10 @@ class EncodeProcessDecode(nn.Module):
             nmessage_passing_steps (int): Number of message passing steps
             nmlp_layers (int): Number of MLP hidden layers
             mlp_hidden_dim (int): MLP hidden dimension
+            leave_out_mm (bool): leave out mesh node edges
         """
         super(EncodeProcessDecode, self).__init__()
+        self._leave_out_mm = leave_out_mm
         self._m_encoder = Encoder(
             mesh_n_dim_in, latent_dim, nmlp_layers, mlp_hidden_dim
         )
@@ -598,9 +619,10 @@ class EncodeProcessDecode(nn.Module):
         self._eom_encoder = Encoder(
             norm_edge_dim, latent_dim, nmlp_layers, mlp_hidden_dim
         )
-        self._emm_encoder = Encoder(
-            norm_edge_dim, latent_dim, nmlp_layers, mlp_hidden_dim
-        )
+        if not leave_out_mm:
+            self._emm_encoder = Encoder(
+                norm_edge_dim, latent_dim, nmlp_layers, mlp_hidden_dim
+            )
         self._eff_encoder = Encoder(
             face_edge_dim, latent_dim * 3, nmlp_layers, mlp_hidden_dim
         )
@@ -614,6 +636,7 @@ class EncodeProcessDecode(nn.Module):
             nmessage_passing_steps=nmessage_passing_steps,
             nmlp_layers=nmlp_layers,
             mlp_hidden_dim=mlp_hidden_dim,
+            leave_out_mm=leave_out_mm,
         )
         self._m_decoder = Decoder(
             nnode_in=latent_dim,
@@ -663,7 +686,10 @@ class EncodeProcessDecode(nn.Module):
 
         mesh_n_latent = self._m_encoder(mesh_n)
         obj_n_latent = self._o_encoder(obj_n)
-        e_mm_latent = self._emm_encoder(e_mm)
+        if self._leave_out_mm:
+            e_mm_latent = None
+        else:
+            e_mm_latent = self._emm_encoder(e_mm)
         e_mo_latent = self._emo_encoder(e_mo)
         e_om_latent = self._eom_encoder(e_om)
         if ff_index.shape[1] > 0:

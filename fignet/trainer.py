@@ -480,6 +480,7 @@ def create_trainer(config_file: str):
         input_seq_length=config["data_config"]["input_seq_length"],
         mlp_hidden_dim=config.get("latent_dim", 128),
         device=device,
+        leave_out_mm=config.get("leave_out_mm", False),
     )
     trainer = Trainer(sim=sim, logger=logger, config=config, device=device)
 

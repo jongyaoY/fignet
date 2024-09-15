@@ -1,4 +1,4 @@
-# FIGNet: Face Interaction Graph Networks
+# FIGNet: Face Interaction Graph Networks for Simulating Rigid Body Dynamics
 
 [![Active
 Development](https://img.shields.io/badge/Maintenance%20Level-Actively%20Developed-brightgreen.svg)](https://gist.github.com/cheerfulstoic/d107229326a01ff0f333a1d3476e068d)
@@ -15,10 +15,13 @@ Development](https://img.shields.io/badge/Maintenance%20Level-Actively%20Develop
 
 ## Package overview
 
-This repo is a third party implementation of the paper [Learning Rigid Dynamics
+This repo is a **third party** implementation of the **FIGNet** [Learning Rigid Dynamics
 with Face Interaction
 Graph Networks](https://arxiv.org/pdf/2212.03574)\[1\], trying to reproduce the
-results from the original paper. It is still in an early
+results from the original paper. The package also includes the improvement
+introduced in their following work (**FIGNet\***)\[2\].
+
+This project is still in an early
 experimental stage, and not guaranteed to produce the same results as in
 the paper. Welcome to contribute if you find errors in the implementation.
 
@@ -90,7 +93,10 @@ detection results.
 
 Because of the object-mesh edges and the novel face-face edges, the
 graph consists of two sets of nodes (mesh and object nodes) and four sets of edges
-(mesh-mesh, mesh-object, object-mesh, face-face). The message passing layer
+(mesh-mesh, mesh-object, object-mesh, face-face). According to
+following work of FIGNet \[2\], omitting
+the mesh-mesh edges helps the model to scale without affecting the accuracy.
+The implementation also adds the option to omit the mesh-mesh edges. Finally, the message passing layer
 is augmented to handle face-face message passing.
 
 ## How to Install
@@ -183,10 +189,12 @@ be uncompressed after download.
 ### 2. Run the training
 
 For the training you need to pass in a config file; a template can be found in
-[config/train.json](config/train.json). Adapt `data_path`, `test_data_path` to
+[config/train.yaml](config/train.yaml). Adapt `data_path`, `test_data_path` to
 the train and test dataset respectively. For train dataset, it can be the raw
 dataset (npz file) or the folder containing pre-computed graphs, while the test
-dataset should be a npz file. Also adapt `batch_size` and `num_workers` accordingly.
+dataset should be a npz file. Also adapt `batch_size` and `num_workers`
+accordingly. As mentioned above, omitting the mesh-mesh edges improves the memory
+efficiency \[2\]. Set `leave_out_mm=True` for better scalability.
 
 ```bash
 python scripts/train.py --config_file=config/train.yaml
@@ -200,10 +208,12 @@ predicted trajectories.
 
 ```bash
 python scripts/render_model.py --model_path=[model path] --num_ep=[number of episodes] --off_screen --video_path=[video path] --input_seq_len=3 --height=480 --width=640
+# or if leave_out_mm is set true during training
+python scripts/render_model.py --model_path=[model path] --leave_out_mm --num_ep=[number of episodes] --off_screen --video_path=[video path] --input_seq_len=3 --height=480 --width=640
 ```
 
-The following animation is generated after training for `662K` steps with batch size `128`. The upper and lower images
-show the ground truth and simulated trajectories respectively.
+The FIGNet model was trained for `662K` steps with batch size `128`, and FIGNet*
+trained for `224K` steps with batch size `256`.
 
 <div align="center">
   <p style="text-align:center;">Ground Truth</p>
@@ -212,18 +222,24 @@ show the ground truth and simulated trajectories respectively.
   <img src="docs/img/ground_truth_1.gif" width="240"/>
   <img src="docs/img/ground_truth_0.gif" width="240"/>
 
-  <p style="text-align:center;">Prediction</p>
+  <p style="text-align:center;">FIGNet</p>
 
   <img src="docs/img/simulation_3.gif" width="240"/>
   <img src="docs/img/simulation_1.gif" width="240"/>
   <img src="docs/img/simulation_0.gif" width="240"/>
 
+  <p style="text-align:center;">FIGNet*</p>
+
+  <img src="docs/img/simulation_3_star.gif" width="240"/>
+  <img src="docs/img/simulation_1_star.gif" width="240"/>
+  <img src="docs/img/simulation_0_star.gif" width="240"/>
 </div>
 
 The weights can be downloaded here:
 
-- [weights_itr_750k](https://cloud.dfki.de/owncloud/index.php/s/gWDDJ6Hst2DJfra)
-- [weights_itr_662k](https://cloud.dfki.de/owncloud/index.php/s/N5NyiZKFgrYz6iS)
+- [FIGNet_weights_itr_750k](https://cloud.dfki.de/owncloud/index.php/s/gWDDJ6Hst2DJfra)
+- [FIGNet_weights_itr_662k](https://cloud.dfki.de/owncloud/index.php/s/N5NyiZKFgrYz6iS)
+- [FIGNet*_weights_itr_224k](https://cloud.dfki.de/owncloud/index.php/s/Bke7brE5oafANRj)
 
 ## Acknowledgments
 
@@ -255,7 +271,10 @@ Action (BMWK) with the grant number 01ME19003D
 <a id="1">\[1\]</a> Allen, Kelsey R., et al. "Learning rigid dynamics with face
 interaction graph networks." arXiv preprint arXiv:2212.03574 (2022).
 
-<a id="2">\[2\]</a> Pan, J., Chitta, S., Pan, J., Manocha, D., Mirabel, J.,
+<a id="2">\[2\]</a> Lopez-Guevara, Tatiana, et al. "Scaling Face Interaction
+Graph Networks to Real World Scenes." arXiv preprint arXiv:2401.11985 (2024).
+
+<a id="3">\[3\]</a> Pan, J., Chitta, S., Pan, J., Manocha, D., Mirabel, J.,
 Carpentier, J., & Montaut, L. (2024).
 HPP-FCL - An extension of the Flexible
 Collision Library (Version 2.4.4) [Computer software].

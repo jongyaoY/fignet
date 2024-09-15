@@ -32,6 +32,7 @@ log_level: "info"
 # model_file: "log/sim-pc/models/weights_itr_482000.ckpt"
 # train_state_file: "log/sim-pc/models/train_state_itr_482000.ckpt"
 # Simulator params
+leave_out_mm: True
 latent_dim: 128
 message_passing_steps: 10
 mlp_layers: 2

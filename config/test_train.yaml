@@ -29,6 +29,7 @@ logging_folder: "log_test"
 log_level: "info"
 # continue_log_from: "2024-08-29-17:05"
 # Simulator params
+leave_out_mm: True
 latent_dim: 128
 message_passing_steps: 10
 mlp_layers: 2

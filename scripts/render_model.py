@@ -33,6 +33,7 @@ import rigid_fall
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--model_path", required=True)
+parser.add_argument("--leave_out_mm", action="store_true")
 parser.add_argument(
     "--split_video",
     action="store_true",
@@ -58,6 +59,7 @@ parser.add_argument("--height", required=False, type=int, default=240)
 parser.add_argument("--width", required=False, type=int, default=320)
 args = parser.parse_args()
 
+leave_out_mm = args.leave_out_mm
 load_from = args.load_from
 model_path = args.model_path
 video_path = args.video_path
@@ -210,6 +212,7 @@ if __name__ == "__main__":
         input_seq_length=input_seq_length,
         mlp_hidden_dim=latent_dim,
         device=device,
+        leave_out_mm=leave_out_mm,
     )
     learned_sim.load(model_path)
     learned_sim.to(device)
