@@ -78,7 +78,7 @@ inverse of mass (1), friction (3), restitution (1), object kinematic (1)\]
 ### Face-face edges
 
 Collision detection is implemented by the
-[hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl) library.
+[hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl) library \[2\].
 Face-face edge features are calculated based on the
 detection results.
 
@@ -131,9 +131,8 @@ released (see [issue
 library has to be installed from
 [source](https://github.com/humanoid-path-planner/hpp-fcl.git) (commit [7e3f33b](https://github.com/humanoid-path-planner/hpp-fcl/commit/7e3f33b7614bba363ca6f27c2730539dfa20c3ea))
 together with the latest [eigenpy
-(v3.8.0)](https://github.com/stack-of-tasks/eigenpy.git) or
-through the wheels we
-built if you are using python3.8
+(v3.8.0)](https://github.com/stack-of-tasks/eigenpy.git) or install
+the pre-built wheels for python3.8 as follows
 
 ```bash
 # Install pre-compiled binary through pip if you are using python3.8, try upgrade your pip first
@@ -176,7 +175,7 @@ python scripts/preprocess_data.py --data_path=[path_to_dataset/train_dataset_nam
 This process takes around 8 hours with `num_workers=8`, and will create a
 folder `path_to_dataset/train_dataset_name` with all
 the pre-computed graphs stored inside. The dataset with 1M steps will create
-960k graphs and takes around 500GB disk space (uncompressed). Alternatively, the pre-computed
+960k graphs and takes around 335GB disk space (uncompressed). Alternatively, the pre-computed
 graphs for training can also be downloaded
 [here](https://cloud.dfki.de/owncloud/index.php/s/NgLbrWykYKcSabj). It needs to
 be uncompressed after download.
@@ -200,36 +199,37 @@ with the learned simulator, and generate animation of the ground truth and
 predicted trajectories.
 
 ```bash
-python scripts/render_model.py --model_path=[model path] --num_ep=[number of episodes] --off_screen --video_path=[video path]
+python scripts/render_model.py --model_path=[model path] --num_ep=[number of episodes] --off_screen --video_path=[video path] --input_seq_len=3 --height=480 --width=640
 ```
 
-:construction: **TODO:** update gifs after training finished
-
-The following animation is generated after training for `336K/1M` steps with batch size 128. The upper and lower images
+The following animation is generated after training for `662K` steps with batch size `128`. The upper and lower images
 show the ground truth and simulated trajectories respectively.
 
 <div align="center">
   <p style="text-align:center;">Ground Truth</p>
 
-  <img src="docs/img/ground_truth_2.gif" width="240"/>
+  <img src="docs/img/ground_truth_3.gif" width="240"/>
   <img src="docs/img/ground_truth_1.gif" width="240"/>
   <img src="docs/img/ground_truth_0.gif" width="240"/>
 
   <p style="text-align:center;">Prediction</p>
 
-  <img src="docs/img/simulation_2.gif" width="240"/>
+  <img src="docs/img/simulation_3.gif" width="240"/>
   <img src="docs/img/simulation_1.gif" width="240"/>
   <img src="docs/img/simulation_0.gif" width="240"/>
 
 </div>
 
-:construction: **TODO** add learning curve chart and upload weights
+The weights can be downloaded here:
+
+- [weights_itr_750k](https://cloud.dfki.de/owncloud/index.php/s/gWDDJ6Hst2DJfra)
+- [weights_itr_662k](https://cloud.dfki.de/owncloud/index.php/s/N5NyiZKFgrYz6iS)
 
 ## Acknowledgments
 
 ### Code reference
 
-The FigNet package is highly inspired by the PyTorch version of Graph Network
+The FIGNet implementation is highly inspired by the PyTorch version of Graph Network
 Simulator and Mesh Graph Network Simulator:
 [https://github.com/geoelements/gns](https://github.com/geoelements/gns). The
 following files are direct copied from the
@@ -254,6 +254,12 @@ Action (BMWK) with the grant number 01ME19003D
 
 <a id="1">\[1\]</a> Allen, Kelsey R., et al. "Learning rigid dynamics with face
 interaction graph networks." arXiv preprint arXiv:2212.03574 (2022).
+
+<a id="2">\[2\]</a> Pan, J., Chitta, S., Pan, J., Manocha, D., Mirabel, J.,
+Carpentier, J., & Montaut, L. (2024).
+HPP-FCL - An extension of the Flexible
+Collision Library (Version 2.4.4) [Computer software].
+[https://github.com/humanoid-path-planner/hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl)
 
 ## License
 
