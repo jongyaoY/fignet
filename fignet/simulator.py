@@ -71,9 +71,6 @@ class LearnedSimulator(nn.Module):
         norm_edge_dim = (
             self._mesh_dimensions + 1
         ) * 2  # [drs, |drs|, drs_ref, |drs_ref|]
-        face_edge_dim = (
-            7 * (self._mesh_dimensions + 1) + 2 * self._mesh_dimensions
-        )  # [drs, |drs|, dsi, |dsi|, dri, |dri|, nr, ns]
 
         # Initialize the gnn pipeline
         self._encode_process_decode = EncodeProcessDecode(
@@ -82,7 +79,6 @@ class LearnedSimulator(nn.Module):
             obj_n_dim_in=node_dim,
             obj_n_dim_out=self._mesh_dimensions,
             norm_edge_dim=norm_edge_dim,
-            face_edge_dim=face_edge_dim,
             latent_dim=latent_dim,
             nmessage_passing_steps=nmessage_passing_steps,
             nmlp_layers=nmlp_layers,
@@ -98,11 +94,11 @@ class LearnedSimulator(nn.Module):
         self._node_normalizer = Normalizer(
             size=self._node_dim, name="node_normalizer", device=device
         )
-        self._regular_edge_normalizer = Normalizer(
-            size=norm_edge_dim, name="regular_edge_normalizer", device=device
+        self._mo_edge_normalizer = Normalizer(
+            size=norm_edge_dim, name="mo_edge_normalizer", device=device
         )
-        self._face_edge_normalizer = Normalizer(
-            size=face_edge_dim, name="face_edge_normalizer", device=device
+        self._om_edge_normalizer = Normalizer(
+            size=norm_edge_dim, name="om_edge_normalizer", device=device
         )
         self._output_normalizer = Normalizer(
             size=self._mesh_dimensions, name="output_normalizer", device=device
@@ -185,29 +181,24 @@ class LearnedSimulator(nn.Module):
             "obj_n": o_features,
             "om_index": input.edge_sets[EdgeType.OBJ_MESH].index,
             "mo_index": input.edge_sets[EdgeType.MESH_OBJ].index,
-            "ff_index": input.edge_sets[EdgeType.FACE_FACE].index,
-            "e_mo": self._regular_edge_normalizer(
-                input.edge_sets[EdgeType.MESH_OBJ].attribute
-            ),
-            "e_om": self._regular_edge_normalizer(
+            # "mm_index": input.edge_sets[EdgeType.MESH_MESH].index,
+            # "ff_index": input.edge_sets[EdgeType.FACE_FACE].index,
+            # "e_mm": self._regular_edge_normalizer(
+            #     input.edge_sets[EdgeType.MESH_MESH].attribute
+            # ),
+            # "e_mo": self._mo_edge_normalizer(
+            #     input.edge_sets[EdgeType.MESH_OBJ].attribute
+            # ),
+            "e_om": self._om_edge_normalizer(
                 input.edge_sets[EdgeType.OBJ_MESH].attribute
             ),
         }
-        if not self._leave_out_mm:
-            graph["mm_index"] = input.edge_sets[EdgeType.MESH_MESH].index
-            graph["e_mm"] = self._regular_edge_normalizer(
-                input.edge_sets[EdgeType.MESH_MESH].attribute
+        if graph["mo_index"].shape[1] > 0:
+            graph["e_mo"] = self._mo_edge_normalizer(
+                input.edge_sets[EdgeType.MESH_OBJ].attribute
             )
         else:
-            graph["mm_index"] = None
-            graph["e_mm"] = None
-
-        if graph["ff_index"].shape[1] > 0:
-            graph["e_ff"] = self._face_edge_normalizer(
-                input.edge_sets[EdgeType.FACE_FACE].attribute
-            )
-        else:
-            graph["e_ff"] = input.edge_sets[EdgeType.FACE_FACE].attribute
+            graph["e_mo"] = input.edge_sets[EdgeType.MESH_OBJ].attribute
         return graph
 
     def predict_accelerations(
@@ -237,15 +228,15 @@ class LearnedSimulator(nn.Module):
         model = self.state_dict()
         _output_normalizer = self._output_normalizer.get_variable()
         _node_normalizer = self._node_normalizer.get_variable()
-        _regular_edge_normalizer = self._regular_edge_normalizer.get_variable()
-        _face_edge_normalizer = self._face_edge_normalizer.get_variable()
+        _mo_edge_normalizer = self._mo_edge_normalizer.get_variable()
+        _om_edge_normalizer = self._om_edge_normalizer.get_variable()
 
         save_data = {
             "model": model,
             "_output_normalizer": _output_normalizer,
             "_node_normalizer": _node_normalizer,
-            "_regular_edge_normalizer": _regular_edge_normalizer,
-            "_face_edge_normalizer": _face_edge_normalizer,
+            "_mo_edge_normalizer": _mo_edge_normalizer,
+            "_om_edge_normalizer": _om_edge_normalizer,
         }
 
         torch.save(save_data, path)

@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import List, Optional
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -128,8 +128,6 @@ class InteractionNetwork(nn.Module):
         nnode_out: int,
         nedge_in: int,
         nedge_out: int,
-        fedge_in: int,
-        fedge_out: int,
         nmlp_layers: int,
         mlp_hidden_dim: int,
         leave_out_mm: bool,
@@ -152,11 +150,7 @@ class InteractionNetwork(nn.Module):
         self.mesh_node_fn = nn.Sequential(
             *[
                 build_mlp(
-                    (
-                        nnode_in + 2 * nedge_in + fedge_in
-                        if not leave_out_mm
-                        else nnode_in + nedge_in + fedge_in
-                    ),
+                    nnode_in + nedge_in,
                     [mlp_hidden_dim for _ in range(nmlp_layers)],
                     nnode_out,
                 ),
@@ -174,19 +168,6 @@ class InteractionNetwork(nn.Module):
             ]
         )
         # Edge MLP
-        if not leave_out_mm:
-            self.mm_edge_fn = nn.Sequential(
-                *[
-                    build_mlp(
-                        nnode_in + nnode_in + nedge_in,
-                        [mlp_hidden_dim for _ in range(nmlp_layers)],
-                        nedge_out,
-                    ),
-                    nn.LayerNorm(nedge_out),
-                ]
-            )
-        else:
-            self.mm_edge_fn = None
 
         self.mo_edge_fn = nn.Sequential(
             *[
@@ -209,29 +190,14 @@ class InteractionNetwork(nn.Module):
             ]
         )
 
-        self.ff_edge_fn = nn.Sequential(
-            *[
-                build_mlp(
-                    3 * (nnode_in + nnode_in + fedge_in),
-                    [mlp_hidden_dim for _ in range(nmlp_layers)],
-                    3 * fedge_out,
-                ),
-                nn.LayerNorm(3 * fedge_out),
-            ]
-        )
-
     def forward(
         self,
         mesh_n: torch.tensor,
         obj_n: torch.tensor,
-        mm_index: torch.tensor,
         mo_index: torch.tensor,
         om_index: torch.tensor,
-        ff_index: torch.tensor,
-        e_mm: torch.tensor,
         e_mo: torch.tensor,
         e_om: torch.tensor,
-        e_ff: Optional[torch.tensor] = None,
     ):
         """Runs the interaction network: calculate and aggregate messages,
         update node and edge features. Input and output are summed
@@ -255,10 +221,8 @@ class InteractionNetwork(nn.Module):
 
             ff_index (torch.tensor): Face-face edge index of shape
             (num_fedge, 3, fedge_dim)
-            e_mm (torch.tensor): Mesh-mesh edge latent features
             e_mo (torch.tensor): Mesh-object edge latent features
             e_om (torch.tensor): Object-mesh edge latent features
-            e_ff (Optional[torch.tensor], optional): Face-face edge latent
             features. None if there are no face-face edges
 
         Returns:
@@ -272,53 +236,31 @@ class InteractionNetwork(nn.Module):
         # Calculate messages
         s_dim = 0
         r_dim = 1
-        if e_mm is not None:
-            e_mm_updated = self.message(
-                torch.index_select(mesh_n, 0, mm_index[s_dim]),
-                torch.index_select(mesh_n, 0, mm_index[r_dim]),
-                "mm",
-                e_mm,
-            )
-        e_mo_updated = self.message(
-            torch.index_select(mesh_n, 0, mo_index[s_dim]),
-            torch.index_select(obj_n, 0, mo_index[r_dim]),
-            "mo",
-            e_mo,
-        )
 
+        if e_mo is not None:
+            e_mo_updated = self.message(
+                torch.index_select(mesh_n, 0, mo_index[s_dim]),
+                torch.index_select(obj_n, 0, mo_index[r_dim]),
+                "mo",
+                e_mo,
+            )
         e_om_updated = self.message(
             torch.index_select(obj_n, 0, om_index[s_dim]),
             torch.index_select(mesh_n, 0, om_index[r_dim]),
             "om",
             e_om,
         )
-        if e_ff is not None:
-            e_ff_updated = self.message(
-                torch.index_select(mesh_n, 0, ff_index[s_dim].flatten()).view(
-                    e_ff.shape[0], e_ff.shape[1], -1
-                ),
-                torch.index_select(mesh_n, 0, ff_index[r_dim].flatten()).view(
-                    e_ff.shape[0], e_ff.shape[1], -1
-                ),
-                "ff",
-                e_ff,
-            )
-        # Aggregate
-        if e_mm is not None:
-            aggr_mm = scatter(
-                e_mm_updated,
-                mm_index[r_dim],
+
+        if e_mo is not None:
+            aggr_mo = scatter(
+                e_mo_updated,
+                mo_index[r_dim],
                 dim=0,
-                dim_size=mesh_n.shape[0],
+                dim_size=obj_n.shape[0],
                 reduce="sum",
             )
-        aggr_mo = scatter(
-            e_mo_updated,
-            mo_index[r_dim],
-            dim=0,
-            dim_size=obj_n.shape[0],
-            reduce="sum",
-        )
+        else:
+            aggr_mo = to_tensor(torch.zeros_like(obj_n))
         aggr_om = scatter(
             e_om_updated,
             om_index[r_dim],
@@ -327,39 +269,17 @@ class InteractionNetwork(nn.Module):
             reduce="sum",
         )
 
-        if e_ff is not None:
-            ff_r_index = ff_index[r_dim].view(
-                ff_index.shape[1] * ff_index.shape[2]
-            )  # receiver indices
-            aggr_ff = scatter(
-                e_ff_updated.view(
-                    e_ff_updated.shape[0] * e_ff_updated.shape[1], -1
-                ),
-                ff_r_index,
-                dim=0,
-                dim_size=mesh_n.shape[0],
-                reduce="sum",
-            )
-        else:
-            aggr_ff = to_tensor(torch.zeros_like(mesh_n))
         # Update nodes
         obj_n_updated = self.obj_node_fn(torch.cat([obj_n, aggr_mo], dim=-1))
-        if e_mm is not None:
-            mesh_n_updated = self.mesh_node_fn(
-                torch.cat([mesh_n, aggr_om, aggr_mm, aggr_ff], dim=-1)
-            )
-        else:
-            mesh_n_updated = self.mesh_node_fn(
-                torch.cat([mesh_n, aggr_om, aggr_ff], dim=-1)
-            )
+        mesh_n_updated = self.mesh_node_fn(
+            torch.cat([mesh_n, aggr_om], dim=-1)
+        )
 
         return (
             mesh_n + mesh_n_updated,
             obj_n + obj_n_updated,
-            e_mm + e_mm_updated if e_mm is not None else None,
-            e_mo + e_mo_updated,
+            e_mo + e_mo_updated if e_mo is not None else None,
             e_om + e_om_updated,
-            e_ff + e_ff_updated if e_ff is not None else None,
         )
 
     def message(
@@ -424,8 +344,6 @@ class Processor(nn.Module):
         nnode_out: int,
         nedge_in: int,
         nedge_out: int,
-        fedge_in: int,
-        fedge_out: int,
         nmessage_passing_steps: int,
         nmlp_layers: int,
         mlp_hidden_dim: int,
@@ -454,8 +372,6 @@ class Processor(nn.Module):
                     nnode_out=nnode_out,
                     nedge_in=nedge_in,
                     nedge_out=nedge_out,
-                    fedge_in=fedge_in,
-                    fedge_out=fedge_out,
                     nmlp_layers=nmlp_layers,
                     mlp_hidden_dim=mlp_hidden_dim,
                     leave_out_mm=leave_out_mm,
@@ -468,14 +384,14 @@ class Processor(nn.Module):
         self,
         mesh_n: torch.tensor,
         obj_n: torch.tensor,
-        mm_index: torch.tensor,
+        # mm_index: torch.tensor,
         mo_index: torch.tensor,
         om_index: torch.tensor,
-        ff_index: torch.tensor,
-        e_mm: torch.tensor,
+        # ff_index: torch.tensor,
+        # e_mm: torch.tensor,
         e_mo: torch.tensor,
         e_om: torch.tensor,
-        e_ff: torch.tensor,
+        # e_ff: torch.tensor,
     ):
         """Run through the interaction network stack
 
@@ -510,31 +426,29 @@ class Processor(nn.Module):
         """
         mesh_n_in = mesh_n
         obj_n_in = obj_n
-        e_mm_in = e_mm
+        # e_mm_in = e_mm
         e_mo_in = e_mo
         e_om_in = e_om
-        e_ff_in = e_ff
+        # e_ff_in = e_ff
         for gnn in self.gnn_stacks:
-            (mesh_n_out, obj_n_out, e_mm_out, e_mo_out, e_om_out, e_ff_out) = (
-                gnn(
-                    mesh_n=mesh_n_in,
-                    obj_n=obj_n_in,
-                    mm_index=mm_index,
-                    mo_index=mo_index,
-                    om_index=om_index,
-                    ff_index=ff_index,
-                    e_mm=e_mm_in,
-                    e_mo=e_mo_in,
-                    e_om=e_om_in,
-                    e_ff=e_ff_in,
-                )
+            (mesh_n_out, obj_n_out, e_mo_out, e_om_out) = gnn(
+                mesh_n=mesh_n_in,
+                obj_n=obj_n_in,
+                # mm_index=mm_index,
+                mo_index=mo_index,
+                om_index=om_index,
+                # ff_index=ff_index,
+                # e_mm=e_mm_in,
+                e_mo=e_mo_in,
+                e_om=e_om_in,
+                # e_ff=e_ff_in,
             )
             mesh_n_in = mesh_n_out
             obj_n_in = obj_n_out
-            e_mm_in = e_mm_out
+            # e_mm_in = e_mm_out
             e_mo_in = e_mo_out
             e_om_in = e_om_out
-            e_ff_in = e_ff_out
+            # e_ff_in = e_ff_out
         return mesh_n_out, obj_n_out
 
 
@@ -583,7 +497,6 @@ class EncodeProcessDecode(nn.Module):
         obj_n_dim_in: int,
         obj_n_dim_out: int,
         norm_edge_dim: int,
-        face_edge_dim: int,
         latent_dim: int,
         nmessage_passing_steps: int,
         nmlp_layers: int,
@@ -619,20 +532,17 @@ class EncodeProcessDecode(nn.Module):
         self._eom_encoder = Encoder(
             norm_edge_dim, latent_dim, nmlp_layers, mlp_hidden_dim
         )
-        if not leave_out_mm:
-            self._emm_encoder = Encoder(
-                norm_edge_dim, latent_dim, nmlp_layers, mlp_hidden_dim
-            )
-        self._eff_encoder = Encoder(
-            face_edge_dim, latent_dim * 3, nmlp_layers, mlp_hidden_dim
-        )
+        # self._emm_encoder = Encoder(
+        #     norm_edge_dim, latent_dim, nmlp_layers, mlp_hidden_dim
+        # )
+        # self._eff_encoder = Encoder(
+        #     face_edge_dim, latent_dim * 3, nmlp_layers, mlp_hidden_dim
+        # )
         self._processor = Processor(
             nnode_in=latent_dim,
             nnode_out=latent_dim,
             nedge_in=latent_dim,
             nedge_out=latent_dim,
-            fedge_in=latent_dim,
-            fedge_out=latent_dim,
             nmessage_passing_steps=nmessage_passing_steps,
             nmlp_layers=nmlp_layers,
             mlp_hidden_dim=mlp_hidden_dim,
@@ -657,13 +567,13 @@ class EncodeProcessDecode(nn.Module):
         mesh_n: torch.Tensor,
         obj_n: torch.Tensor,
         om_index: torch.Tensor,
-        mm_index: torch.Tensor,
+        # mm_index: torch.Tensor,
         mo_index: torch.Tensor,
-        ff_index: torch.Tensor,
-        e_mm: torch.Tensor,
+        # ff_index: torch.Tensor,
+        # e_mm: torch.Tensor,
         e_mo: torch.Tensor,
         e_om: torch.Tensor,
-        e_ff: torch.Tensor,
+        # e_ff: torch.Tensor,
     ):
         """Forward hook
 
@@ -686,28 +596,28 @@ class EncodeProcessDecode(nn.Module):
 
         mesh_n_latent = self._m_encoder(mesh_n)
         obj_n_latent = self._o_encoder(obj_n)
-        if self._leave_out_mm:
-            e_mm_latent = None
+        # e_mm_latent = self._emm_encoder(e_mm)
+        if mo_index.shape[1] > 0:
+            e_mo_latent = self._emo_encoder(e_mo)
         else:
-            e_mm_latent = self._emm_encoder(e_mm)
-        e_mo_latent = self._emo_encoder(e_mo)
+            e_mo_latent = None
         e_om_latent = self._eom_encoder(e_om)
-        if ff_index.shape[1] > 0:
-            e_ff_latent = self._eff_encoder(e_ff).view(e_ff.shape[0], 3, -1)
-        else:  # No face-face edges
-            e_ff_latent = None
+        # if ff_index.shape[1] > 0:
+        # e_ff_latent = self._eff_encoder(e_ff).view(e_ff.shape[0], 3, -1)
+        # else:  # No face-face edges
+        # e_ff_latent = None
 
         mesh_n_latent_out, obj_n_latent_out = self._processor(
             mesh_n=mesh_n_latent,
             obj_n=obj_n_latent,
-            mm_index=mm_index,
+            # mm_index=mm_index,
             mo_index=mo_index,
             om_index=om_index,
-            ff_index=ff_index,
-            e_mm=e_mm_latent,
+            # ff_index=ff_index,
+            # e_mm=e_mm_latent,
             e_mo=e_mo_latent,
             e_om=e_om_latent,
-            e_ff=e_ff_latent,
+            # e_ff=e_ff_latent,
         )
         return self._m_decoder(mesh_n_latent_out), self._o_decoder(
             obj_n_latent_out

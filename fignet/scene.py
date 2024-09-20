@@ -270,7 +270,7 @@ class Scene:
             )
             # Calculate node/edge features and connectivity
 
-        index, ff_features = self._cal_connectivity()
+        index, mo_features = self._cal_connectivity()
         edge_features = self._edge_features(
             obj_com=noised_obj_com_seq[-1, ...],
             obj_ref_com=self._obj_ref_com,
@@ -278,7 +278,7 @@ class Scene:
             vert_ref_pos=self._verts_ref_pos,
             index=index,
         )
-        edge_features[EdgeType.FACE_FACE] = ff_features
+        edge_features[EdgeType.MESH_OBJ] = mo_features
         # Calculate target without noise
         cal_target = False
         if target_poses is not None:
@@ -336,7 +336,7 @@ class Scene:
             NodeType.MESH: m_features,
             NodeType.OBJECT: o_features,
         }
-        for edge_type in EdgeType:
+        for edge_type in [EdgeType.MESH_OBJ, EdgeType.OBJ_MESH]:
             graph.edge_sets.update(
                 {
                     edge_type: Edge(
@@ -505,16 +505,16 @@ class Scene:
             Dict[str, np.ndarray]: Edge indices
             np.ndarray: Face edge features
         """
-        # regular edges
-        mm_index = np.empty((2, 0), dtype=np.int64)
+        # Inner obj edges
         mo_index = np.empty((2, 0), dtype=np.int64)
+        # node-obj edges
         for name, obj_id in self._obj_ids.items():
-            mm_edges = self._meshes[name].edges_unique.T  # (2, n_edges)
+            # mm_edges = self._meshes[name].edges_unique.T  # (2, n_edges)
             # bidirectional edges
-            mm_edges = np.concatenate([mm_edges, mm_edges[[1, 0]]], axis=-1)
+            # mm_edges = np.concatenate([mm_edges, mm_edges[[1, 0]]], axis=-1)
             m_offset, _ = self._vert_index(name)
             o_offset = obj_id
-            mm_edges = mm_edges + m_offset
+            # mm_edges = mm_edges + m_offset
 
             mo_senders = np.arange(
                 0, len(self._meshes[name].vertices), dtype=np.int64
@@ -524,10 +524,13 @@ class Scene:
             mo_receivers = mo_receivers + o_offset
             mo_edges = np.vstack([mo_senders, mo_receivers])
 
-            mm_index = np.concatenate([mm_index, mm_edges], axis=-1)
+            # mm_index = np.concatenate([mm_index, mm_edges], axis=-1)
             mo_index = np.concatenate([mo_index, mo_edges], axis=-1)
+        om_index = mo_index[[1, 0]]
 
-        # face-face edges
+        # Inter-obj edges
+        mo_index = np.empty((2, 0), dtype=np.int64)
+        # node-obj edges only collision related
         contacts = self._collision_manager.in_collision()
         # self._collision_manager.visualize_contacts(contacts) #! for debug
         pairs = self._collision_manager.get_collision_pairs(
@@ -535,7 +538,7 @@ class Scene:
         )
         senders = []
         receivers = []
-        ff_features = []
+        mo_features = []
 
         for (name1, name2, face_id1, face_id2), (
             point1,
@@ -546,66 +549,78 @@ class Scene:
             verts1 = mesh1.vertices[
                 mesh1.faces[face_id1]
             ]  # or mesh1.triangles[face_id1]?
-            verts2 = mesh2.vertices[mesh2.faces[face_id2]]
-            norm_s = mesh1.face_normals[face_id1]
-            norm_r = mesh2.face_normals[face_id2]
-            d_rs = point2 - point1  # p_r - p_s from receiver to sender
             id_s = mesh1.faces[face_id1]
-            id_r = mesh2.faces[face_id2]
-            d_si = verts1 - point1  # sender
-            d_ri = verts2 - point2  # receiver
-            d_si_norms = np.linalg.norm(d_si, axis=1)
-            d_ri_norms = np.linalg.norm(d_ri, axis=1)
+            # Get obj pos
+            obj_com_2 = mesh2.center_mass
+
+            p2_v1 = point2 - verts1
+            p2_o2 = np.repeat(
+                point2[None, :] - obj_com_2[None, :], id_s.shape[0], axis=0
+            )
+            p2_v1_norm = np.linalg.norm(p2_v1, axis=1, keepdims=True)
+            p2_o2_norm = np.linalg.norm(p2_o2, axis=1, keepdims=True)
+            features = np.concatenate(
+                [p2_v1, p2_o2, p2_v1_norm, p2_o2_norm], axis=-1
+            )
+            # verts2 = mesh2.vertices[mesh2.faces[face_id2]]
+            # norm_s = mesh1.face_normals[face_id1]
+            # norm_r = mesh2.face_normals[face_id2]
+            # d_rs = point2 - point1  # p_r - p_s from receiver to sender
+            # id_r = mesh2.faces[face_id2]
+            # d_si = verts1 - point1  # sender
+            # d_ri = verts2 - point2  # receiver
+            # d_si_norms = np.linalg.norm(d_si, axis=1)
+            # d_ri_norms = np.linalg.norm(d_ri, axis=1)
 
             # Order according to the distance to retain permutation equivariance
-            ord_s = np.argsort(d_si_norms)
-            ord_r = np.argsort(d_ri_norms)
-            id_s = id_s[ord_s]
-            id_r = id_r[ord_r]
-            d_si = d_si[ord_s]
-            d_ri = d_ri[ord_r]
-            d_si_norms = d_si_norms[ord_s]
-            d_ri_norms = d_ri_norms[ord_r]
+            # ord_s = np.argsort(d_si_norms)
+            # ord_r = np.argsort(d_ri_norms)
+            # id_s = id_s[ord_s]
+            # id_r = id_r[ord_r]
+            # d_si = d_si[ord_s]
+            # d_ri = d_ri[ord_r]
+            # d_si_norms = d_si_norms[ord_s]
+            # d_ri_norms = d_ri_norms[ord_r]
 
             # Concatenate the norms too
-            d_rs = np.concatenate(
-                [d_rs, np.linalg.norm(d_rs, keepdims=True)], axis=-1
-            )
-            d_si = np.concatenate([d_si, d_si_norms[:, None]], axis=-1)
-            d_ri = np.concatenate([d_ri, d_ri_norms[:, None]], axis=-1)
-            # assert np.allclose(mesh1.vertices[id_s]-point1, d_si)
-            # assert np.allclose(mesh2.vertices[id_r]-point2, d_ri)
+            # d_rs = np.concatenate(
+            #     [d_rs, np.linalg.norm(d_rs, keepdims=True)], axis=-1
+            # )
+            # d_si = np.concatenate([d_si, d_si_norms[:, None]], axis=-1)
+            # d_ri = np.concatenate([d_ri, d_ri_norms[:, None]], axis=-1)
 
-            features = np.concatenate(
-                [
-                    d_rs,  # (4,)
-                    d_si.flatten(),  # (3*4,)
-                    d_ri.flatten(),  # (3*4,)
-                    norm_s.flatten(),  # (3,)
-                    norm_r.flatten(),  # (3)
-                ],
-                axis=-1,
-            )
+            # features = np.concatenate(
+            #     [
+            #         d_rs,  # (4,)
+            #         d_si.flatten(),  # (3*4,)
+            #         d_ri.flatten(),  # (3*4,)
+            #         norm_s.flatten(),  # (3,)
+            #         norm_r.flatten(),  # (3)
+            #     ],
+            #     axis=-1,
+            # )
             id_s += self._vert_index(name1)[0]
-            id_r += self._vert_index(name2)[0]
+            id_r = np.repeat(self._obj_ids[name2], id_s.shape[0], axis=0)
 
             senders.append(id_s)
             receivers.append(id_r)
-            ff_features.append(features)
+            mo_features.append(features)
 
-        ff_index = np.empty((2, len(ff_features), 3), dtype=np.int64)
-        if senders:
-            ff_index[0] = np.asarray(senders, dtype=np.int64)
-        if receivers:
-            ff_index[1] = np.asarray(receivers, dtype=np.int64)
-
+        if len(senders) > 0:
+            senders = np.concatenate(senders, dtype=np.int64, axis=-1)
+            receivers = np.concatenate(receivers, dtype=np.int64, axis=-1)
+            mo_index = np.vstack([senders, receivers])
+        else:
+            mo_index = np.empty((2, 0), dtype=np.int64)
         index = {
-            EdgeType.MESH_MESH: mm_index,
             EdgeType.MESH_OBJ: mo_index,
-            EdgeType.OBJ_MESH: mo_index[[1, 0]],
-            EdgeType.FACE_FACE: ff_index,
+            EdgeType.OBJ_MESH: om_index,
         }
-        return index, np.asarray(ff_features)
+        if len(mo_features) > 0:
+            mo_features = np.vstack(mo_features)
+        else:
+            mo_features = np.empty((0, 8))  # TODO
+        return index, mo_features
 
     def _edge_features(
         self,
@@ -631,19 +646,18 @@ class Scene:
         for edge_type, edge_index in index.items():
             s_index = edge_index[0]
             r_index = edge_index[1]
-            if edge_type == EdgeType.MESH_MESH:
-                d_rs = vert_pos[s_index, ...] - vert_pos[r_index, ...]
-                d_rs_ref = (
-                    vert_ref_pos[s_index, ...] - vert_ref_pos[r_index, ...]
-                )
-            elif edge_type == EdgeType.MESH_OBJ:
-                d_rs = vert_pos[s_index] - obj_com[r_index]
-                d_rs_ref = vert_ref_pos[s_index] - obj_ref_com[r_index]
+            # if edge_type == EdgeType.MESH_MESH:
+            #     d_rs = vert_pos[s_index, ...] - vert_pos[r_index, ...]
+            #     d_rs_ref = (
+            #         vert_ref_pos[s_index, ...] - vert_ref_pos[r_index, ...]
+            #     )
+            if edge_type == EdgeType.MESH_OBJ:
+                continue
             elif edge_type == EdgeType.OBJ_MESH:
                 d_rs = obj_com[s_index] - vert_pos[r_index]
                 d_rs_ref = obj_ref_com[s_index] - vert_ref_pos[r_index]
             else:
-                continue
+                raise TypeError(f"Unknown edge type {edge_type}")
             # assert np.allclose(
             #     np.linalg.norm(d_rs, axis=1), np.linalg.norm(d_rs_ref, axis=1)
             # )
