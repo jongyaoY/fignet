@@ -30,6 +30,7 @@ from typing import List
 import numpy as np
 import torch
 import torch.utils
+from torch_geometric.data import HeteroData
 
 from fignet.scene import Scene
 from fignet.types import EdgeType, Graph, NodeType
@@ -101,6 +102,65 @@ def collate_fn(batch: List[Graph]):
             ]
 
         return batch_graph
+
+
+class HeteroGraph(HeteroData):
+
+    def __cat_dim__(self, key, value, *args, **kwargs):
+        if "index" in key or key == "position":
+            return 1
+        else:
+            return 0
+
+
+class ToHeteroData(object):
+
+    def __init__(self):
+        pass
+
+    def __call__(self, graph: Graph):
+        seq_len = graph.node_sets[NodeType.MESH].position.shape[0]
+        m_features = []
+        o_features = []
+        for i in range(seq_len):
+            if i + 1 < seq_len:
+                m_vel = (
+                    graph.node_sets[NodeType.MESH].position[i + 1, ...]
+                    - graph.node_sets[NodeType.MESH].position[i, ...]
+                )
+                o_vel = (
+                    graph.node_sets[NodeType.OBJECT].position[i + 1, ...]
+                    - graph.node_sets[NodeType.OBJECT].position[i, ...]
+                )
+                m_features.append(m_vel)
+                o_features.append(o_vel)
+        m_features.append(graph.node_sets[NodeType.MESH].properties)
+        m_features.append(graph.node_sets[NodeType.MESH].kinematic)
+        o_features.append(graph.node_sets[NodeType.OBJECT].properties)
+        o_features.append(graph.node_sets[NodeType.OBJECT].kinematic)
+        m_features = torch.cat(m_features, dim=-1)
+        o_features = torch.cat(o_features, dim=-1)
+        data = HeteroGraph()
+        data["mesh"].x = m_features
+        data["mesh"].kinematic = graph.node_sets[NodeType.MESH].kinematic
+        data["mesh"].y = graph.node_sets[NodeType.MESH].target
+        data["object"].x = o_features
+        data["object"].y = graph.node_sets[NodeType.OBJECT].target
+
+        data["mesh", "m-o", "object"].edge_index = graph.edge_sets[
+            EdgeType.MESH_OBJ
+        ].index
+        data["mesh", "m-o", "object"].edge_attr = graph.edge_sets[
+            EdgeType.MESH_OBJ
+        ].attribute
+        data["object", "o-m", "mesh"].edge_index = graph.edge_sets[
+            EdgeType.OBJ_MESH
+        ].index
+        data["object", "o-m", "mesh"].edge_attr = graph.edge_sets[
+            EdgeType.OBJ_MESH
+        ].attribute
+
+        return data
 
 
 class ToTensor(object):

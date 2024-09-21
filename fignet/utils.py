@@ -44,10 +44,13 @@ def check_nan(data):
 
 
 def to_numpy(tensor: torch.Tensor):
-    if tensor.is_cuda:
-        return tensor.cpu().detach().numpy()
+    if isinstance(tensor, torch.Tensor):
+        if tensor.is_cuda:
+            return tensor.cpu().detach().numpy()
+        else:
+            return tensor.detach().numpy()
     else:
-        return tensor.detach().numpy()
+        return tensor
 
 
 def rot_diff(quat1, quat2):
@@ -265,14 +268,7 @@ def optimizer_to(optim, device):
                         subparam._grad.data = subparam._grad.data.to(device)
 
 
-def rollout(
-    sim,
-    init_obj_poses,
-    obj_ids,
-    scene,
-    device,
-    nsteps,
-):
+def rollout(sim, init_obj_poses, obj_ids, scene, device, nsteps, use_pyg):
     if isinstance(init_obj_poses, torch.Tensor):
         init_obj_poses = to_numpy(init_obj_poses)
     scene.synchronize_states(init_obj_poses, obj_ids)
@@ -283,6 +279,10 @@ def rollout(
     ):
         graph = scene.to_graph()
         graph = dataclass_to_tensor(graph, device)
+        if use_pyg:
+            from fignet.data_loader import ToHeteroData
+
+            graph = ToHeteroData()(graph)
         m_pred_acc, o_pred_acc = sim.predict_accelerations(graph)
         m_pred_acc = sim.denormalize_accelerations(m_pred_acc)
         o_pred_acc = sim.denormalize_accelerations(o_pred_acc)

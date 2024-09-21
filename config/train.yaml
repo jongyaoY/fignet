@@ -1,12 +1,12 @@
 # Training params
 use_cuda: true
-batch_size: 64
-num_workers: 16
+batch_size: 32
+num_workers: 10
 lr_init: 1.0e-3
 lr_decay_rate: 0.1
 lr_decay_steps: 1.0e+6
 training_steps: 1.0e+6
-warmup_steps: 5
+warmup_steps: 1
 # Evaluation
 loss_report_step: 2000
 log_grad: True
@@ -17,9 +17,10 @@ rollout_steps: 50
 run_validate: true
 num_eval_rollout: 10
 save_video: true
+use_pyg: true
 # Dataset
-data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_1M.npz"
-test_data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_100K.npz"
+data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_100K.npz"
+test_data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_10K.npz"
 data_config:
   noise_std: 3.0e-5
   connectivity_radius: 0.01
@@ -27,10 +28,10 @@ data_config:
 # Logging
 logging_folder: "log"
 log_level: "info"
-# continue_log_from: "2024-08-29-17:05"
+# continue_log_from: "2024-09-19-19:11"
 # Resume training
-# model_file: "log/sim-pc/models/weights_itr_482000.ckpt"
-# train_state_file: "log/sim-pc/models/train_state_itr_482000.ckpt"
+# model_file: "log/2024-09-19-19:11/models/weights_itr_22000.ckpt"
+# train_state_file: "log/2024-09-19-19:11/models/train_state_itr_22000.ckpt"
 # Simulator params
 leave_out_mm: True
 latent_dim: 128
