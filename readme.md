@@ -213,7 +213,7 @@ python scripts/render_model.py --model_path=[model path] --leave_out_mm --num_ep
 ```
 
 The FIGNet model was trained for `662K` steps with batch size `128`, and FIGNet*
-trained for `224K` steps with batch size `256`.
+trained for `500K` steps with batch size `256`.
 
 <div align="center">
   <p style="text-align:center;">Ground Truth</p>
@@ -239,7 +239,8 @@ The weights can be downloaded here:
 
 - [FIGNet_weights_itr_750k](https://cloud.dfki.de/owncloud/index.php/s/gWDDJ6Hst2DJfra)
 - [FIGNet_weights_itr_662k](https://cloud.dfki.de/owncloud/index.php/s/N5NyiZKFgrYz6iS)
-- [FIGNet*_weights_itr_224k](https://cloud.dfki.de/owncloud/index.php/s/Bke7brE5oafANRj)
+- [FIGNet*_weights_itr_470k](https://cloud.dfki.de/owncloud/index.php/s/kMeZtTQ6HDGcS6p)
+- [FIGNet*_weights_itr_500k](https://cloud.dfki.de/owncloud/index.php/s/oXrBcNHBLJD9fc5)
 
 ## Acknowledgments
 
