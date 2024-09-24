@@ -26,7 +26,7 @@ import torch.nn as nn
 from torch_geometric.nn import HeteroConv, MessagePassing
 from torch_scatter import scatter
 
-from fignet.data_loader import HeteroGraph
+from fignet.data import HeteroGraph
 from fignet.graph_networks import Decoder, Encoder, build_mlp
 
 MOEdge = ("mesh", "m-o", "object")

@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import dataclasses
 import time
 from typing import Union
 
@@ -33,10 +32,12 @@ from robosuite.utils import OpenCVRenderer
 from robosuite.utils.binding_utils import MjRenderContext, MjSim
 from scipy.spatial.transform import Rotation as R
 
+from fignet.transform import ToHeteroData, dataclass_to_tensor, to_tensor
+
 
 def check_nan(data):
     if isinstance(data, dict):
-        for k, v in data.items():
+        for _, v in data.items():
             check_nan(v)
     elif isinstance(data, torch.Tensor):
         if data.nelement() and torch.isnan(data).all().item():
@@ -186,73 +187,6 @@ def mesh_com_sequence(mesh: trimesh.Trimesh, poses: np.ndarray):
     return np.asarray(com_seq)
 
 
-def dataclass_to_tensor(d, device=None):
-
-    if isinstance(d, np.ndarray) or isinstance(d, torch.Tensor):
-        return to_tensor(d, device=device)
-    elif dataclasses.is_dataclass(d):
-        for f in dataclasses.fields(d):
-            setattr(
-                d,
-                f.name,
-                dataclass_to_tensor(getattr(d, f.name), device=device),
-            )
-        return d
-    elif isinstance(d, dict):
-        for k, v in d.items():
-            d[k] = dataclass_to_tensor(v, device=device)
-        return d
-
-
-def dict_to_tensor(d: dict, device=None):
-    new_dict = dict()
-    for k, v in d.items():
-        if isinstance(v, dict):
-            new_dict[k] = dict_to_tensor(v, device)
-        else:
-            if device is None:
-                new_dict[k] = torch.FloatTensor(v)
-            else:
-                if isinstance(v, torch.Tensor):
-                    if v.dtype == torch.long:
-                        new_dict[k] = v.to(device)
-                    else:
-                        new_dict[k] = v.float().to(device)
-                elif isinstance(v, np.ndarray):
-                    if v.dtype == np.int64:
-                        new_dict[k] = torch.from_numpy(v).long().to(device)
-                    else:
-                        new_dict[k] = torch.from_numpy(v).float().to(device)
-                elif isinstance(v, int):
-                    new_dict[k] = torch.LongTensor([v]).to(device)
-                else:
-                    raise TypeError(f"Unexpected data type: {type(v)}")
-
-    return new_dict
-
-
-def to_tensor(array: Union[np.ndarray, torch.Tensor], device: str = None):
-    if isinstance(array, torch.Tensor):
-        if array.dtype == torch.float64:
-            tensor = array.float()
-        else:
-            tensor = array
-    elif isinstance(array, np.ndarray):
-        if array.dtype == np.int64:
-            tensor = torch.from_numpy(array).long()
-        else:
-            tensor = torch.from_numpy(array).float()
-    elif isinstance(array, dict):
-        return dict_to_tensor(array, device)
-    else:
-        raise TypeError(f"Cannot conver {type(array)} to tensor")
-
-    if device:
-        return tensor.to(device)
-    else:
-        return tensor
-
-
 def optimizer_to(optim, device):
     for param in optim.state.values():
         # Not sure there are any global tensors in the state dict
@@ -268,7 +202,7 @@ def optimizer_to(optim, device):
                         subparam._grad.data = subparam._grad.data.to(device)
 
 
-def rollout(sim, init_obj_poses, obj_ids, scene, device, nsteps, use_pyg):
+def rollout(sim, init_obj_poses, obj_ids, scene, device, nsteps):
     if isinstance(init_obj_poses, torch.Tensor):
         init_obj_poses = to_numpy(init_obj_poses)
     scene.synchronize_states(init_obj_poses, obj_ids)
@@ -279,10 +213,8 @@ def rollout(sim, init_obj_poses, obj_ids, scene, device, nsteps, use_pyg):
     ):
         graph = scene.to_graph()
         graph = dataclass_to_tensor(graph, device)
-        if use_pyg:
-            from fignet.data_loader import ToHeteroData
 
-            graph = ToHeteroData()(graph)
+        graph = ToHeteroData()(graph)
         m_pred_acc, o_pred_acc = sim.predict_accelerations(graph)
         m_pred_acc = sim.denormalize_accelerations(m_pred_acc)
         o_pred_acc = sim.denormalize_accelerations(o_pred_acc)

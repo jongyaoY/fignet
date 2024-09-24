@@ -17,7 +17,6 @@ rollout_steps: 50
 run_validate: true
 num_eval_rollout: 10
 save_video: true
-use_pyg: true
 # Dataset
 data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_100K.npz"
 test_data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_10K.npz"

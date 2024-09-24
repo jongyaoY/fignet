@@ -28,20 +28,17 @@ import torch.utils
 import torch.utils.data
 import tqdm
 import yaml
+from torch_geometric.loader import DataLoader
+from torch_geometric.transforms import ToDevice
 from torchvision import transforms as T
 
-from fignet.data_loader import (
-    HeteroGraph,
-    MujocoDataset,
-    ToHeteroData,
-    ToTensor,
-    collate_fn,
-)
+from fignet.data_loader import MujocoDataset, collate_fn
 from fignet.logger import Logger
 from fignet.plt_utils import init_fig, plot_grad_flow
 from fignet.scene import Scene
 from fignet.simulator import LearnedSimulator
-from fignet.types import Graph, KinematicType, NodeType
+from fignet.transform import ToHeteroData, ToTensor
+from fignet.types import KinematicType
 from fignet.utils import (
     optimizer_to,
     rollout,
@@ -72,16 +69,10 @@ class Trainer:
         data_path = config["data_path"]
         test_data_path = config["test_data_path"]
         batch_size = config.get("batch_size", 1)
-        use_pyg = config.get("use_pyg", True)
-        self.use_pyg = use_pyg
         self._datasets = {}
         self._dataloaders = {}
-        if use_pyg:
-            transform = T.Compose([ToTensor(), ToHeteroData()])
 
-        else:
-            transform = T.Compose([ToTensor()])
-
+        transform = T.Compose([ToTensor(), ToHeteroData()])
         self._datasets["train"] = MujocoDataset(
             data_path,
             self._input_seq_length,
@@ -93,31 +84,17 @@ class Trainer:
             test_data_path,
             config["rollout_steps"],
             mode="trajectory",
-            # transform=T.Compose([ToTensor()]),
             config=config.get("data_config"),
         )
 
-        if use_pyg:
-            from torch_geometric.loader import DataLoader
-            from torch_geometric.transforms import ToDevice
+        self._dataloaders["train"] = DataLoader(
+            self._datasets["train"],
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=config.get("num_workers", 1),
+        )
+        self.to_device = ToDevice(self._device)
 
-            self._dataloaders["train"] = DataLoader(
-                self._datasets["train"],
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=config.get("num_workers", 1),
-                # pin_memory=True,
-            )
-            self.graph_transform = ToDevice(self._device)
-        else:
-            self._dataloaders["train"] = torch.utils.data.DataLoader(
-                self._datasets["train"],
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=config.get("num_workers", 1),
-                pin_memory=True,
-                collate_fn=collate_fn,
-            )
         self._dataloaders["val"] = torch.utils.data.DataLoader(
             self._datasets["val"],
             batch_size=1,
@@ -196,21 +173,10 @@ class Trainer:
             range(warmup_steps), desc="Filling normalization buffer"
         )
         for i, sample in enumerate(self._dataloaders["train"]):
-            if isinstance(sample, Graph):
-                m_mask = (
-                    sample.node_sets[NodeType.MESH].kinematic
-                    == KinematicType.DYNAMIC
-                ).squeeze()
-                sample = ToTensor(self._device)(sample)
 
-                self._sim._encoder_preprocessor(sample)
-                self._sim.normalize_accelerations(
-                    sample.node_sets[NodeType.MESH].target[m_mask]
-                )
-            elif isinstance(sample, HeteroGraph):
-                sample = self.graph_transform(sample)
-                self._sim._encoder_preprocessor(sample)
-                self._sim.normalize_accelerations(sample["mesh"].y)
+            sample = self.to_device(sample)
+            self._sim._encoder_preprocessor(sample)
+            self._sim.normalize_accelerations(sample["mesh"].y)
 
             self.check_normalization_stats()
             pbar.update(1)
@@ -295,23 +261,12 @@ class Trainer:
 
     def cal_loss(self, sample):
         """Calculate loss"""
-        if isinstance(sample, Graph):
-            non_kinematic_mask = (
-                sample.node_sets[NodeType.MESH].kinematic
-                == KinematicType.DYNAMIC
-            ).to(self._device)
-            sample = ToTensor(self._device)(sample)
-            pred_acc, _ = self._sim.predict_accelerations(sample)
-            target_acc = self._sim.normalize_accelerations(
-                sample.node_sets[NodeType.MESH].target
-            )
-        elif isinstance(sample, HeteroGraph):
-            non_kinematic_mask = (
-                sample["mesh"].kinematic == KinematicType.DYNAMIC
-            ).to(self._device)
-            sample = self.graph_transform(sample)
-            pred_acc, _ = self._sim.predict_accelerations(sample)
-            target_acc = self._sim.normalize_accelerations(sample["mesh"].y)
+        non_kinematic_mask = (
+            sample["mesh"].kinematic == KinematicType.DYNAMIC
+        ).to(self._device)
+        sample = self.to_device(sample)
+        pred_acc, _ = self._sim.predict_accelerations(sample)
+        target_acc = self._sim.normalize_accelerations(sample["mesh"].y)
 
         loss = torch.nn.functional.mse_loss(
             pred_acc, target_acc, reduction="none"
@@ -409,7 +364,6 @@ class Trainer:
                         scene=Scene(scene_config),
                         device=self._device,
                         nsteps=self._rollout_steps,
-                        use_pyg=self.use_pyg,
                     )
                 except Exception as e:
                     self._logger.print(
@@ -527,7 +481,6 @@ def create_trainer(config_file: str):
         input_seq_length=config["data_config"]["input_seq_length"],
         mlp_hidden_dim=config.get("latent_dim", 128),
         device=device,
-        use_pyg=config.get("use_pyg", False),
     )
     trainer = Trainer(sim=sim, logger=logger, config=config, device=device)
 

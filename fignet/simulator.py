@@ -20,18 +20,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import Union
 
 import torch
 import torch.nn as nn
 
-from fignet.data_loader import HeteroGraph
-from fignet.graph_networks import EncodeProcessDecode
-from fignet.message_passing import (
-    EncodeProcessDecode as EncodeProcessDecode_pyg,
-)
+from fignet.data import HeteroGraph
+from fignet.message_passing import EncodeProcessDecode, MOEdge, OMEdge
 from fignet.normalization import Normalizer
-from fignet.types import EdgeType, Graph, KinematicType, NodeType
+from fignet.types import KinematicType, NodeType
 
 
 class LearnedSimulator(nn.Module):
@@ -42,7 +38,6 @@ class LearnedSimulator(nn.Module):
         nmessage_passing_steps: int,
         nmlp_layers: int,
         mlp_hidden_dim: int,
-        use_pyg: bool,
         input_seq_length: int = 3,
         property_dim: int = 5,
         device="cpu",
@@ -80,31 +75,19 @@ class LearnedSimulator(nn.Module):
         mo_edge_dim = (self._mesh_dimensions + 1) * 2
         om_edge_dim = (self._mesh_dimensions + 1) * 2
         # Initialize the gnn pipeline
-        if use_pyg:
-            self._encode_process_decode = EncodeProcessDecode_pyg(
-                mesh_n_dim_in=node_dim,
-                mesh_n_dim_out=self._mesh_dimensions,
-                obj_n_dim_in=node_dim,
-                obj_n_dim_out=self._mesh_dimensions,
-                mo_edge_dim=mo_edge_dim,
-                om_edge_dim=om_edge_dim,
-                latent_dim=latent_dim,
-                message_passing_steps=nmessage_passing_steps,
-                mlp_layers=nmlp_layers,
-                mlp_hidden_dim=mlp_hidden_dim,
-            )
-        else:
-            self._encode_process_decode = EncodeProcessDecode(
-                mesh_n_dim_in=node_dim,
-                mesh_n_dim_out=self._mesh_dimensions,
-                obj_n_dim_in=node_dim,
-                obj_n_dim_out=self._mesh_dimensions,
-                norm_edge_dim=norm_edge_dim,
-                latent_dim=latent_dim,
-                nmessage_passing_steps=nmessage_passing_steps,
-                nmlp_layers=nmlp_layers,
-                mlp_hidden_dim=mlp_hidden_dim,
-            )
+        self._encode_process_decode = EncodeProcessDecode(
+            mesh_n_dim_in=node_dim,
+            mesh_n_dim_out=self._mesh_dimensions,
+            obj_n_dim_in=node_dim,
+            obj_n_dim_out=self._mesh_dimensions,
+            mo_edge_dim=mo_edge_dim,
+            om_edge_dim=om_edge_dim,
+            latent_dim=latent_dim,
+            message_passing_steps=nmessage_passing_steps,
+            mlp_layers=nmlp_layers,
+            mlp_hidden_dim=mlp_hidden_dim,
+        )
+
         self._node_dim = node_dim
         self._num_nodes = 0
         self._num_objs = 0
@@ -123,7 +106,10 @@ class LearnedSimulator(nn.Module):
         self._output_normalizer = Normalizer(
             size=self._mesh_dimensions, name="output_normalizer", device=device
         )
-
+        self._edge_normalizer = {
+            MOEdge: self._mo_edge_normalizer,
+            OMEdge: self._om_edge_normalizer,
+        }
         self._device = device
 
     def denormalize_accelerations(
@@ -160,7 +146,7 @@ class LearnedSimulator(nn.Module):
 
     def _encoder_preprocessor(
         self,
-        input: Union[Graph, HeteroGraph],
+        input: HeteroGraph,
     ):
         """Preprocess input including normalization and adding noise
 
@@ -170,77 +156,19 @@ class LearnedSimulator(nn.Module):
         Returns:
             dict: Preprocessed graph
         """
-        if isinstance(input, Graph):
-            seq_len = input.node_sets[NodeType.MESH].position.shape[0]
-            m_features = []
-            o_features = []
-            for i in range(seq_len):
-                if i + 1 < seq_len:
-                    m_vel = (
-                        input.node_sets[NodeType.MESH].position[i + 1, ...]
-                        - input.node_sets[NodeType.MESH].position[i, ...]
-                    )
-                    o_vel = (
-                        input.node_sets[NodeType.OBJECT].position[i + 1, ...]
-                        - input.node_sets[NodeType.OBJECT].position[i, ...]
-                    )
-                    m_features.append(m_vel)
-                    o_features.append(o_vel)
-            m_features.append(input.node_sets[NodeType.MESH].properties)
-            m_features.append(input.node_sets[NodeType.MESH].kinematic)
-            o_features.append(input.node_sets[NodeType.OBJECT].properties)
-            o_features.append(input.node_sets[NodeType.OBJECT].kinematic)
-            m_features = torch.cat(m_features, dim=-1)
-            o_features = torch.cat(o_features, dim=-1)
-
-            # Normalize node features
-            m_features = self._node_normalizer(m_features)
-            o_features = self._node_normalizer(o_features)
-
-            graph = {
-                "mesh_n": m_features,
-                "obj_n": o_features,
-                "om_index": input.edge_sets[EdgeType.OBJ_MESH].index,
-                "mo_index": input.edge_sets[EdgeType.MESH_OBJ].index,
-                # "mm_index": input.edge_sets[EdgeType.MESH_MESH].index,
-                # "ff_index": input.edge_sets[EdgeType.FACE_FACE].index,
-                # "e_mm": self._regular_edge_normalizer(
-                #     input.edge_sets[EdgeType.MESH_MESH].attribute
-                # ),
-                # "e_mo": self._mo_edge_normalizer(
-                #     input.edge_sets[EdgeType.MESH_OBJ].attribute
-                # ),
-                "e_om": self._om_edge_normalizer(
-                    input.edge_sets[EdgeType.OBJ_MESH].attribute
-                ),
-            }
-            if graph["mo_index"].shape[1] > 0:
-                graph["e_mo"] = self._mo_edge_normalizer(
-                    input.edge_sets[EdgeType.MESH_OBJ].attribute
+        for k in input.x_dict.keys():
+            input[k].x = self._node_normalizer(input[k].x)
+        for k in input.edge_attr_dict.keys():
+            if input[k].edge_index.shape[1] > 0:
+                input[k].edge_attr = self._edge_normalizer[k](
+                    input[k].edge_attr
                 )
-            else:
-                graph["e_mo"] = input.edge_sets[EdgeType.MESH_OBJ].attribute
-            return graph
-        elif isinstance(input, HeteroGraph):
-            for k in input.x_dict.keys():
-                input[k].x = self._node_normalizer(input[k].x)
-            for k in input.edge_attr_dict.keys():
-                # input[k].attr = self.e
-                if k[1] == "m-o":
-                    if input[k].edge_index.shape[1] > 0:
-                        input[k].edge_attr = self._mo_edge_normalizer(
-                            input[k].edge_attr
-                        )
-                elif k[1] == "o-m":
-                    input[k].edge_attr = self._om_edge_normalizer(
-                        input[k].edge_attr
-                    )
 
             return input
 
     def predict_accelerations(
         self,
-        input: Union[HeteroGraph, Graph],
+        input: HeteroGraph,
     ):
         """Predict mesh and object node next accelerations (velocity change)
 
@@ -252,10 +180,7 @@ class LearnedSimulator(nn.Module):
             torch.Tensor: Object node accelerations
         """
         graph = self._encoder_preprocessor(input)
-        if isinstance(input, Graph):
-            m_pred_acc, o_pred_acc = self._encode_process_decode(**graph)
-        elif isinstance(input, HeteroGraph):
-            m_pred_acc, o_pred_acc = self._encode_process_decode(graph)
+        m_pred_acc, o_pred_acc = self._encode_process_decode(graph)
 
         return m_pred_acc, o_pred_acc
 
