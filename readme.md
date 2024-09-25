@@ -212,8 +212,33 @@ python scripts/render_model.py --model_path=[model path] --num_ep=[number of epi
 python scripts/render_model.py --model_path=[model path] --leave_out_mm --num_ep=[number of episodes] --off_screen --video_path=[video path] --input_seq_len=3 --height=480 --width=640
 ```
 
-The FIGNet model was trained for `662K` steps with batch size `128`, and FIGNet*
-trained for `500K` steps with batch size `256`.
+## Results
+
+The FIGNet model was trained for `1M` steps with batch size `128`, and FIGNet*
+trained for `500K` steps with batch size `256`. However, the accuracy didn't improve significantly after
+around `400K` steps.
+
+### Accuracy
+
+Comparing with the results from the papers \[1\]\[2\], the rotational errors are
+slightly higher while the translational errors are about 2 times lower.
+Presumably that's because the dataset being used here has smaller time step
+`dt=0.02`, accounting for lower translational errors, and randomized object
+properties (shape, size, friction, restitution) for higher rotational errors.
+
+<div align="center">
+
+|   |Rotational Error (rad)|Translational Error (m)|
+|:--|:---:|:---:|
+|FIGNet step 1M|0.34|0.04|
+|FIGNet* step 500K|0.38|0.05|
+
+</div>
+
+### Rollouts
+
+The following images show the qualitative comparison between ground truth and
+model predictions of `100` steps:
 
 <div align="center">
   <p style="text-align:center;">Ground Truth</p>
@@ -235,8 +260,11 @@ trained for `500K` steps with batch size `256`.
   <img src="docs/img/simulation_0_star.gif" width="240"/>
 </div>
 
+### Model Weights
+
 The weights can be downloaded here:
 
+- [FIGNet_weights_itr_1M](https://cloud.dfki.de/owncloud/index.php/s/ErMJFWCFbDHiBrT)
 - [FIGNet_weights_itr_750k](https://cloud.dfki.de/owncloud/index.php/s/gWDDJ6Hst2DJfra)
 - [FIGNet_weights_itr_662k](https://cloud.dfki.de/owncloud/index.php/s/N5NyiZKFgrYz6iS)
 - [FIGNet*_weights_itr_470k](https://cloud.dfki.de/owncloud/index.php/s/kMeZtTQ6HDGcS6p)
