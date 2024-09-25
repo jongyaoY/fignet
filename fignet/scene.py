@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import enum
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -32,10 +33,11 @@ from fignet.types import (
     EdgeType,
     Graph,
     KinematicType,
+    MetaEnum,
     NodeFeature,
     NodeType,
 )
-from fignet.utils import (
+from fignet.utils.geometric import (
     match_meshes,
     mesh_com,
     mesh_com_sequence,
@@ -44,6 +46,26 @@ from fignet.utils import (
     pose_to_transform,
     transform_to_pose,
 )
+
+
+class SceneInfoKey(enum.Enum, metaclass=MetaEnum):
+    VERT_SEQ = "vert_seq"
+    COM_SEQ = "com_seq"
+    VERT_PROP = "vert_prop"
+    OBJ_PROP = "obj_prop"
+    VERT_KINEMATIC = "vert_kinematic"
+    OBJ_KINEMATIC = "obj_kinematic"
+    VERT_REF_POS = "vert_ref_pos"
+    COM_REF_POS = "com_ref_pos"
+    VERT_OFFSETS_DICT = "vert_offsets_dict"
+    NUM_VERTS_DICT = "num_verts_dict"
+    OBJ_OFFSETS_DICT = "obj_offsets_dict"
+    CONTACT_PAIRS = "contact_pairs"
+    VERT_TARGET = "vert_target"
+    COM_TARGET = "com_target"
+
+
+SceneInfoDict = Dict[SceneInfoKey, Any]
 
 
 class Scene:
@@ -233,6 +255,71 @@ class Scene:
         )
         self._verts_seq = np.delete(self._verts_seq, 0, axis=0)
         self._obj_com_seq = np.delete(self._obj_com_seq, 0, axis=0)
+
+    def to_dict(
+        self,
+        target_poses: Optional[np.ndarray] = None,
+        obj_ids: Optional[Dict[str, int]] = None,
+    ) -> SceneInfoDict:
+        num_verts_dict = {}
+        for name in self._obj_ids.keys():
+            num_verts_dict[name] = len(self._meshes[name].vertices)
+        m_kin, o_kin = self._node_types()
+        m_prop, o_prop = self._node_properties()
+        out_dict = {
+            SceneInfoKey.VERT_SEQ: self._verts_seq.copy(),
+            SceneInfoKey.COM_SEQ: self._obj_com_seq.copy(),
+            SceneInfoKey.VERT_PROP: m_prop,
+            SceneInfoKey.OBJ_PROP: o_prop,
+            SceneInfoKey.VERT_KINEMATIC: m_kin,
+            SceneInfoKey.OBJ_KINEMATIC: o_kin,
+            SceneInfoKey.VERT_REF_POS: self._verts_ref_pos.copy(),
+            SceneInfoKey.COM_REF_POS: self._obj_ref_com.copy(),
+            SceneInfoKey.VERT_OFFSETS_DICT: self._vert_offsets.copy(),
+            SceneInfoKey.NUM_VERTS_DICT: num_verts_dict,
+            SceneInfoKey.OBJ_OFFSETS_DICT: self._obj_ids.copy(),
+            SceneInfoKey.CONTACT_PAIRS: self.get_contact_pairs(),
+        }
+
+        if target_poses is not None:
+            vert_target_acc, obj_target_acc = self.get_target(
+                target_poses, obj_ids
+            )
+            out_dict[SceneInfoKey.VERT_TARGET] = vert_target_acc
+            out_dict[SceneInfoKey.COM_TARGET] = obj_target_acc
+
+        return out_dict
+
+    def get_target(self, target_poses: np.ndarray, obj_ids: np.ndarray):
+        vert_target_pos = np.empty((self._num_vertices, self._mesh_dim))
+        obj_target_pos = np.empty((self._num_obj, self._mesh_dim))
+        for ob_name, ob_id in self._obj_ids.items():
+            start, end = self._vert_index(ob_name)
+            if self.is_dynamic_object(ob_name):
+                ob_pose_id = obj_ids[ob_name]
+                obj_target_pose = target_poses[ob_pose_id, ...]
+                vert_target_pos[start:end, ...] = mesh_verts(
+                    self._meshes[ob_name], obj_target_pose
+                )
+                obj_target_pos[ob_id, ...] = mesh_com(
+                    self._meshes[ob_name], obj_target_pose
+                )
+            else:
+                vert_target_pos[start:end, ...] = self._verts_seq[
+                    -1, start:end, :
+                ]
+                obj_target_pos[ob_id, ...] = self._obj_com_seq[-1, ob_id, :]
+        vert_target_acc = (
+            vert_target_pos
+            - 2 * self._verts_seq[-1, ...]
+            + self._verts_seq[-2, ...]
+        )
+        obj_target_acc = (
+            obj_target_pos
+            - 2 * self._obj_com_seq[-1, ...]
+            + self._obj_com_seq[-2, ...]
+        )
+        return vert_target_acc, obj_target_acc
 
     def to_graph(
         self,
@@ -495,6 +582,31 @@ class Scene:
         mesh_features = np.concatenate([mesh_vel, mesh_prop], axis=-1)
         obj_features = np.concatenate([obj_vel, obj_prop], axis=-1)
         return mesh_features, obj_features
+
+    def get_contact_pairs(self):
+        contacts = self._collision_manager.in_collision()
+        # self._collision_manager.visualize_contacts(contacts) #! for debug
+        pairs = self._collision_manager.get_collision_pairs(
+            contacts, bidirectional=True
+        )
+        out_pairs = {}
+        for (name1, name2, face_id1, face_id2), (
+            point1,
+            point2,
+        ) in pairs.items():
+            mesh1 = self._collision_manager.get_object(name1)
+            mesh2 = self._collision_manager.get_object(name2)
+            id_s = mesh1.faces[face_id1]
+            id_r = mesh2.faces[face_id2]
+            out_pairs[(name1, name2)] = {
+                "vert_ids_local": (id_s, id_r),
+                "contact_points": (point1, point2),
+                "contact_normals": (
+                    mesh1.face_normals[face_id1],
+                    mesh2.face_normals[face_id2],
+                ),
+            }
+        return out_pairs
 
     def _cal_connectivity(self):
         """Calculate graph connectivity, including mesh to mesh (mm) edges,

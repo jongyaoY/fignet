@@ -26,7 +26,7 @@ import torch
 import torch.nn as nn
 from torch_scatter import scatter
 
-from fignet.utils import to_tensor
+from fignet.utils.conversion import to_tensor
 
 
 def build_mlp(

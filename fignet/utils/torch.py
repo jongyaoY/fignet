@@ -20,31 +20,28 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from fignet.data import HeteroGraph
-from fignet.scene import SceneInfoDict
-from fignet.utils.conversion import dict_to_tensor
-from fignet.utils.scene import build_graph
+import torch
 
 
-class ToHeteroGraph(object):
+def optimizer_to(optim, device):
+    for param in optim.state.values():
+        # Not sure there are any global tensors in the state dict
+        if isinstance(param, torch.Tensor):
+            param.data = param.data.to(device)
+            if param._grad is not None:
+                param._grad.data = param._grad.data.to(device)
+        elif isinstance(param, dict):
+            for subparam in param.values():
+                if isinstance(subparam, torch.Tensor):
+                    subparam.data = subparam.data.to(device)
+                    if subparam._grad is not None:
+                        subparam._grad.data = subparam._grad.data.to(device)
 
-    def __init__(self, config=None):
-        self.config = config
 
-    def __call__(self, scn_info: SceneInfoDict) -> HeteroGraph:
-
-        return build_graph(scn_info, self.config)
-
-
-class ToTensor(object):
-    """Convert ndarrays in sample to Tensors."""
-
-    def __init__(self, device=None):
-        self.device = device
-
-    def __call__(self, sample):
-        # convert numpy arrays to pytorch tensors
-        if isinstance(sample, dict):
-            return dict_to_tensor(sample, self.device)
-        else:
-            raise TypeError(f"Cannot convert {type(sample)} to tensor.")
+def check_nan(data):
+    if isinstance(data, dict):
+        for _, v in data.items():
+            check_nan(v)
+    elif isinstance(data, torch.Tensor):
+        if data.nelement() and torch.isnan(data).all().item():
+            raise RuntimeError("nan")

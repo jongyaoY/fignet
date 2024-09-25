@@ -28,9 +28,7 @@ from torch_scatter import scatter
 
 from fignet.data import HeteroGraph
 from fignet.graph_networks import Decoder, Encoder, build_mlp
-
-MOEdge = ("mesh", "m-o", "object")
-OMEdge = ("object", "o-m", "mesh")
+from fignet.types import MOEdge, OMEdge
 
 
 class InteractionNetwork(MessagePassing):

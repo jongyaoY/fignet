@@ -25,9 +25,9 @@ import torch
 import torch.nn as nn
 
 from fignet.data import HeteroGraph
-from fignet.message_passing import EncodeProcessDecode, MOEdge, OMEdge
+from fignet.message_passing import EncodeProcessDecode
 from fignet.normalization import Normalizer
-from fignet.types import KinematicType, NodeType
+from fignet.types import KinematicType, MOEdge, NodeType, OMEdge
 
 
 class LearnedSimulator(nn.Module):

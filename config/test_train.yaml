@@ -1,7 +1,7 @@
 # Training params
 use_cuda: true
-batch_size: 2
-num_workers: 0
+batch_size: 32
+num_workers: 4
 lr_init: 1.0e-3
 lr_decay_rate: 0.1
 lr_decay_steps: 500
@@ -13,12 +13,12 @@ log_grad: True
 log_grad_step: 100
 save_model_step: 100
 eval_step: 100
-rollout_steps: 10
+rollout_steps: 50
 run_validate: true
 num_eval_rollout: 2
 save_video: true
 # Dataset
-data_path: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500.npz"
+data_path: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500"
 test_data_path: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500.npz"
 data_config:
   noise_std: 3.0e-5
@@ -27,7 +27,7 @@ data_config:
 # Logging
 logging_folder: "log_test"
 log_level: "info"
-continue_log_from: "2024-09-23-15:48"
+# continue_log_from: "2024-09-23-15:48"
 # model_file: "log_test/2024-09-23-15:48/models/weights_itr_100.ckpt"
 # train_state_file: "log_test/2024-09-23-15:48/models/train_state_itr_100.ckpt"
 # Simulator params

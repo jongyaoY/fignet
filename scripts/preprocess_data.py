@@ -27,11 +27,10 @@ import sys
 from pathlib import Path
 
 import torch
-import torchvision.transforms as T
 import tqdm
 import yaml
 
-from fignet.data_loader import MujocoDataset, ToTensor
+from fignet.data_loader import MujocoDataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config_file", type=str, required=True)
@@ -59,7 +58,10 @@ def save_graph(graph, graph_i, save_path):
             i = graph_i * batch_size + g_i
             save_graph(g, i, save_path)
     else:
-        graph_dict = graph.to_dict()
+        if not isinstance(graph, dict):
+            graph_dict = graph.to_dict()
+        else:
+            graph_dict = graph
         if not os.path.exists(save_path):
             os.mkdir(save_path)
         file_name = os.path.join(save_path, f"graph_{graph_i}.pkl")
@@ -83,7 +85,7 @@ if __name__ == "__main__":
             path=data_path,
             mode="sample",
             input_sequence_length=3,
-            transform=T.Compose([ToTensor(device)]),
+            # transform=T.Compose([ToTensor(device)]),
             config=config.get("data_config"),
         )
         data_loader = torch.utils.data.DataLoader(

@@ -34,18 +34,15 @@ from torchvision import transforms as T
 
 from fignet.data_loader import MujocoDataset, collate_fn
 from fignet.logger import Logger
-from fignet.plt_utils import init_fig, plot_grad_flow
 from fignet.scene import Scene
 from fignet.simulator import LearnedSimulator
-from fignet.transform import ToHeteroData, ToTensor
+from fignet.transform import ToHeteroGraph
 from fignet.types import KinematicType
-from fignet.utils import (
-    optimizer_to,
-    rollout,
-    rot_diff,
-    to_numpy,
-    visualize_trajectory,
-)
+from fignet.utils.conversion import to_numpy
+from fignet.utils.geometric import rot_diff
+from fignet.utils.plt import init_fig, plot_grad_flow
+from fignet.utils.simulation import rollout, visualize_trajectory
+from fignet.utils.torch import optimizer_to
 
 
 class Trainer:
@@ -72,7 +69,7 @@ class Trainer:
         self._datasets = {}
         self._dataloaders = {}
 
-        transform = T.Compose([ToTensor(), ToHeteroData()])
+        transform = T.Compose([ToHeteroGraph(config.get("data_config"))])
         self._datasets["train"] = MujocoDataset(
             data_path,
             self._input_seq_length,

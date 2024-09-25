@@ -29,6 +29,8 @@ from dacite import from_dict
 from torch import Tensor
 
 TensorType = Union[np.ndarray, Tensor]
+MOEdge = ("mesh", "m-o", "object")
+OMEdge = ("object", "o-m", "mesh")
 
 
 class MetaEnum(enum.EnumMeta):

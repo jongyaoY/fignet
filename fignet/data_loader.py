@@ -169,13 +169,11 @@ class MujocoDataset(torch.utils.data.Dataset):
         elif self._mode == "trajectory":
             return self._get_trajectory(idx)
 
-    def _load_graph(self, graph_file):
+    def _load_scn_info(self, scn_info_file):
         try:
-            with open(graph_file, "rb") as f:
-                sample_dict = pickle.load(f)
-                graph = Graph()
-                graph.from_dict(sample_dict)
-            return graph
+            with open(scn_info_file, "rb") as f:
+                scn_info_dict = pickle.load(f)
+            return scn_info_dict
 
         except FileNotFoundError as e:
             print(e)
@@ -230,20 +228,18 @@ class MujocoDataset(torch.utils.data.Dataset):
                 obj_poses=poses,
                 obj_ids=obj_ids,
             )
-            graph = scn.to_graph(
-                target_poses=target_poses,
-                obj_ids=obj_ids,
-                noise=True,
-            )
-
-            if self._transform is not None:
-                graph = self._transform(graph)
-            return graph
+            scn_info = scn.to_dict(target_poses=target_poses, obj_ids=obj_ids)
         else:
             if os.path.exists(self._file_list[idx]):
-                return self._transform(self._load_graph(self._file_list[idx]))
+                scn_info = self._load_scn_info(self._file_list[idx])
             else:
                 raise FileNotFoundError
+
+        if self._transform is not None:
+            out = self._transform(scn_info)
+        else:
+            out = scn_info
+        return out
 
     def _get_trajectory(self, idx):
         """Sample continuous steps"""
