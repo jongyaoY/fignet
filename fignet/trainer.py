@@ -109,9 +109,7 @@ class Trainer:
         self._log_grad_step = int(config.get("log_grad_step", 2000))
         self._save_model_step = int(config["save_model_step"])
         self._eval_step = int(config["eval_step"])
-        self._optimizer = torch.optim.Adam(
-            self._sim.parameters(), lr=self._lr_init
-        )
+        self._optimizer = None
         self._clip_norm = config.get("clip_norm")
         self._stop_step = int(config.get("training_steps"))
 
@@ -159,7 +157,7 @@ class Trainer:
             except FileNotFoundError as e:
                 self._logger.print(f"{e}", level="warn")
 
-        optimizer_to(self._optimizer, self._device)
+        # optimizer_to(self._optimizer, self._device)
 
     def fill_normalization_buffer(self):
         """Run some steps to fill the buffer to calculate normalization
@@ -170,12 +168,17 @@ class Trainer:
             range(warmup_steps), desc="Filling normalization buffer"
         )
         for i, sample in enumerate(self._dataloaders["train"]):
-
+            if not self._sim.initialized:
+                self._sim.init(sample)  # !Debug
+                self._optimizer = torch.optim.Adam(
+                    self._sim.parameters(), lr=self._lr_init
+                )
+                optimizer_to(self._optimizer, self._device)
             sample = self.to_device(sample)
             self._sim._encoder_preprocessor(sample)
             self._sim.normalize_accelerations(sample["mesh"].y)
 
-            self.check_normalization_stats()
+            # self.check_normalization_stats()
             pbar.update(1)
             if i > warmup_steps:
                 break
@@ -197,7 +200,6 @@ class Trainer:
 
     def train(self):
         """Run the training loop"""
-        self._sim.to(self._device)
         step = self._global_step
         if self._warm_up:
             self.fill_normalization_buffer()
@@ -206,6 +208,11 @@ class Trainer:
         remaining_steps = len(self._dataloaders["train"])
         if self._stop_step is not None:
             remaining_steps = max(remaining_steps, self._stop_step)
+
+        if not self._sim.initialized:
+            raise RuntimeError("simulator not initialized")
+
+        self._sim.to(self._device)
         pbar = tqdm.tqdm(range(remaining_steps), desc="Training")
         pbar.update(step)
         stop_training = False
@@ -473,9 +480,8 @@ def create_trainer(config_file: str):
     sim = LearnedSimulator(
         mesh_dimensions=3,
         latent_dim=config.get("latent_dim", 128),
-        nmessage_passing_steps=config.get("message_passing_steps", 10),
-        nmlp_layers=config.get("mlp_layers", 2),
-        input_seq_length=config["data_config"]["input_seq_length"],
+        message_passing_steps=config.get("message_passing_steps", 10),
+        mlp_layers=config.get("mlp_layers", 2),
         mlp_hidden_dim=config.get("latent_dim", 128),
         device=device,
     )

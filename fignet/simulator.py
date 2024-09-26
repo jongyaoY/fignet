@@ -21,13 +21,16 @@
 # SOFTWARE.
 
 
+from typing import Dict
+
 import torch
 import torch.nn as nn
 
 from fignet.data import HeteroGraph
 from fignet.message_passing import EncodeProcessDecode
 from fignet.normalization import Normalizer
-from fignet.types import KinematicType, MOEdge, NodeType, OMEdge
+
+# from fignet.types import KinematicType, MOEdge, NodeType, OMEdge
 
 
 class LearnedSimulator(nn.Module):
@@ -35,11 +38,9 @@ class LearnedSimulator(nn.Module):
         self,
         mesh_dimensions: int,
         latent_dim: int,
-        nmessage_passing_steps: int,
-        nmlp_layers: int,
+        message_passing_steps: int,
+        mlp_layers: int,
         mlp_hidden_dim: int,
-        input_seq_length: int = 3,
-        property_dim: int = 5,
         device="cpu",
         leave_out_mm: bool = False,
     ):
@@ -58,59 +59,62 @@ class LearnedSimulator(nn.Module):
 
         self._mesh_dimensions = mesh_dimensions
         assert self._mesh_dimensions == 3
-        self._leave_out_mm = leave_out_mm
-        # Initialize the EncodeProcessDecode
-        self._num_node_types = len(NodeType)
 
-        # vel, kin, properties
-        node_dim = (
-            self._mesh_dimensions * (input_seq_length - 1)
-            + property_dim
-            + KinematicType.SIZE
-        )
-        norm_edge_dim = (
-            self._mesh_dimensions + 1
-        ) * 2  # [drs, |drs|, drs_ref, |drs_ref|]
+        self._is_initialized = False
 
-        mo_edge_dim = (self._mesh_dimensions + 1) * 2
-        om_edge_dim = (self._mesh_dimensions + 1) * 2
-        # Initialize the gnn pipeline
-        self._encode_process_decode = EncodeProcessDecode(
-            mesh_n_dim_in=node_dim,
-            mesh_n_dim_out=self._mesh_dimensions,
-            obj_n_dim_in=node_dim,
-            obj_n_dim_out=self._mesh_dimensions,
-            mo_edge_dim=mo_edge_dim,
-            om_edge_dim=om_edge_dim,
-            latent_dim=latent_dim,
-            message_passing_steps=nmessage_passing_steps,
-            mlp_layers=nmlp_layers,
-            mlp_hidden_dim=mlp_hidden_dim,
-        )
-
-        self._node_dim = node_dim
-        self._num_nodes = 0
-        self._num_objs = 0
-        self._index_offsets = {}
-
-        # Setup normalizers
-        self._node_normalizer = Normalizer(
-            size=self._node_dim, name="node_normalizer", device=device
-        )
-        self._mo_edge_normalizer = Normalizer(
-            size=norm_edge_dim, name="mo_edge_normalizer", device=device
-        )
-        self._om_edge_normalizer = Normalizer(
-            size=norm_edge_dim, name="om_edge_normalizer", device=device
-        )
-        self._output_normalizer = Normalizer(
-            size=self._mesh_dimensions, name="output_normalizer", device=device
-        )
-        self._edge_normalizer = {
-            MOEdge: self._mo_edge_normalizer,
-            OMEdge: self._om_edge_normalizer,
-        }
+        self._node_normalizers: Dict[str, Normalizer] = {}
+        self._edge_normalizers: Dict[str, Normalizer] = {}
+        self._output_normalizer: Normalizer = None
         self._device = device
+        self._gnn_params = {
+            "latent_dim": latent_dim,
+            "mlp_layers": mlp_layers,
+            "mlp_hidden_dim": mlp_hidden_dim,
+            "message_passing_steps": message_passing_steps,
+        }
+
+    @property
+    def initialized(self):
+        return self._is_initialized
+
+    def init(self, graph: HeteroGraph):
+        """Lazy initializer"""
+        node_dim_dict = graph.num_node_features
+        edge_dim_dict = graph.num_edge_features
+        # self.graph_meta = graph.metadata
+        self._node_normalizers = {}
+        self._edge_normalizers = {}
+        for node_type, node_dim in node_dim_dict.items():
+            self._node_normalizers[node_type] = Normalizer(
+                size=node_dim,
+                name="_".join([node_type, "node_normalizer"]),
+                device=self._device,
+            )
+        for edge_type, edge_dim in edge_dim_dict.items():
+            edge_type_name = edge_type[1]
+            self._edge_normalizers[edge_type] = Normalizer(
+                size=edge_dim,
+                name="_".join([edge_type_name, "edge_normalizer"]),
+                device=self._device,
+            )
+        self._output_normalizer = Normalizer(
+            size=self._mesh_dimensions,
+            name="output_normalizer",
+            device=self._device,
+        )
+        input_dim_dict = {}
+        input_dim_dict.update(node_dim_dict)
+        input_dim_dict.update(edge_dim_dict)
+        output_dim_dict = {}
+        for node_type in node_dim_dict.keys():
+            output_dim_dict.update({node_type: self._mesh_dimensions})
+        self._encode_process_decode = EncodeProcessDecode(
+            input_dim_dict=input_dim_dict,
+            output_dim_dict=output_dim_dict,
+            **self._gnn_params,
+        )
+
+        self._is_initialized = True
 
     def denormalize_accelerations(
         self,
@@ -157,14 +161,14 @@ class LearnedSimulator(nn.Module):
             dict: Preprocessed graph
         """
         for k in input.x_dict.keys():
-            input[k].x = self._node_normalizer(input[k].x)
+            input[k].x = self._node_normalizers[k](input[k].x)
         for k in input.edge_attr_dict.keys():
             if input[k].edge_index.shape[1] > 0:
-                input[k].edge_attr = self._edge_normalizer[k](
+                input[k].edge_attr = self._edge_normalizers[k](
                     input[k].edge_attr
                 )
 
-            return input
+        return input
 
     def predict_accelerations(
         self,
@@ -190,20 +194,21 @@ class LearnedSimulator(nn.Module):
         Args:
             path: Model path
         """
+        # TODO
         model = self.state_dict()
         _output_normalizer = self._output_normalizer.get_variable()
-        _node_normalizer = self._node_normalizer.get_variable()
-        _mo_edge_normalizer = self._mo_edge_normalizer.get_variable()
-        _om_edge_normalizer = self._om_edge_normalizer.get_variable()
+        # _node_normalizer = self._node_normalizer.get_variable()
+        # _mo_edge_normalizer = self._mo_edge_normalizer.get_variable()
+        # _om_edge_normalizer = self._om_edge_normalizer.get_variable()
 
         save_data = {
             "model": model,
             "_output_normalizer": _output_normalizer,
-            "_node_normalizer": _node_normalizer,
-            "_mo_edge_normalizer": _mo_edge_normalizer,
-            "_om_edge_normalizer": _om_edge_normalizer,
+            # "_node_normalizer": _node_normalizer,
+            # "_mo_edge_normalizer": _mo_edge_normalizer,
+            # "_om_edge_normalizer": _om_edge_normalizer,
         }
-
+        # for
         torch.save(save_data, path)
 
     def load(self, path: str):

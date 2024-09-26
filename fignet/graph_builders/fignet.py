@@ -24,10 +24,10 @@ import numpy as np
 
 from fignet.graph_builders.common import GraphMetaData
 from fignet.scene import SceneInfoDict, SceneInfoKey
-from fignet.types import FFEdge, MOEdge, OMEdge
+from fignet.types import FFEdge, MeshNode, MOEdge, ObjNode, OMEdge
 
 EdgeTypes = [MOEdge, OMEdge, FFEdge]
-
+NodeTypes = [MeshNode, ObjNode]
 meta_data = GraphMetaData(node_dim=8, edge_dim=8)
 fedge_dim = 4 + 2 * (3 * 4) + 2 * 3
 

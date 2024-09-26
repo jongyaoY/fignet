@@ -32,6 +32,8 @@ TensorType = Union[np.ndarray, Tensor]
 MOEdge = ("mesh", "m-o", "object")
 OMEdge = ("object", "o-m", "mesh")
 FFEdge = ("mesh", "f-f", "mesh")
+MeshNode = "mesh"
+ObjNode = "object"
 
 
 class MetaEnum(enum.EnumMeta):
