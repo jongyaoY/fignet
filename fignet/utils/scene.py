@@ -52,10 +52,15 @@ def build_graph(scn_info: SceneInfoDict, config: dict = None):
             scn_info[SceneInfoKey.COM_SEQ] = noised_position_sequence(
                 scn_info[SceneInfoKey.COM_SEQ], noise_std=noise_std
             )
-    graph_struct_type = GraphBuildType.FIGNET_ACT  # TODO
+    graph_struct_type = GraphBuildType.FIGNET  # TODO
 
     if graph_struct_type == GraphBuildType.FIGNET_ACT:
         from fignet.graph_builders.fignet_act import (
+            cal_connectivity,
+            cal_node_attr,
+        )
+    elif graph_struct_type == GraphBuildType.FIGNET:
+        from fignet.graph_builders.fignet import (
             cal_connectivity,
             cal_node_attr,
         )

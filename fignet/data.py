@@ -30,3 +30,9 @@ class HeteroGraph(HeteroData):
             return 1
         else:
             return 0
+
+    def __inc__(self, key, value, store, *args, **kwargs):
+        inc = super().__inc__(key, value, store, *args, **kwargs)
+        if "index" in key and value.ndim > 2:
+            inc = inc.unsqueeze(1)
+        return inc

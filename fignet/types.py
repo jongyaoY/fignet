@@ -31,6 +31,7 @@ from torch import Tensor
 TensorType = Union[np.ndarray, Tensor]
 MOEdge = ("mesh", "m-o", "object")
 OMEdge = ("object", "o-m", "mesh")
+FFEdge = ("mesh", "f-f", "mesh")
 
 
 class MetaEnum(enum.EnumMeta):
