@@ -42,6 +42,7 @@ def rollout(sim, init_obj_poses, obj_ids, scene, device, nsteps):
         range(nsteps - init_obj_poses.shape[0]), desc="sampling rollout"
     ):
         graph = scene.to_dict()
+        # TODO: move to somewhere else
         from torch_geometric.transforms import ToDevice
 
         from fignet.utils.scene import build_graph

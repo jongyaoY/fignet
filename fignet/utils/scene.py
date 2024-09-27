@@ -54,6 +54,7 @@ def build_graph(scn_info: SceneInfoDict, config: dict = None):
             )
     graph_struct_type = GraphBuildType.FIGNET  # TODO
 
+    # TODO: create graph builder class
     if graph_struct_type == GraphBuildType.FIGNET_ACT:
         from fignet.graph_builders.fignet_act import (
             cal_connectivity,
