@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 import os
+import traceback
 
 import numpy as np
 import torch
@@ -159,21 +160,25 @@ class Trainer:
 
         # optimizer_to(self._optimizer, self._device)
 
+    def init_simulator(self):
+        if not self._sim.initialized:
+            sample = next(iter(self._dataloaders["train"]))
+            self._sim.init(sample)
+        self._optimizer = torch.optim.Adam(
+            self._sim.parameters(), lr=self._lr_init
+        )
+        optimizer_to(self._optimizer, self._device)
+
     def fill_normalization_buffer(self):
         """Run some steps to fill the buffer to calculate normalization
         stats"""
         warmup_steps = self._warmup_steps
-        self._sim.train()
+        # self._sim.train()
         pbar = tqdm.tqdm(
             range(warmup_steps), desc="Filling normalization buffer"
         )
         for i, sample in enumerate(self._dataloaders["train"]):
-            if not self._sim.initialized:
-                self._sim.init(sample)  # !Debug
-                self._optimizer = torch.optim.Adam(
-                    self._sim.parameters(), lr=self._lr_init
-                )
-                optimizer_to(self._optimizer, self._device)
+
             sample = self.to_device(sample)
             self._sim._encoder_preprocessor(sample)
             self._sim.normalize_accelerations(sample["mesh"].y)
@@ -201,10 +206,9 @@ class Trainer:
     def train(self):
         """Run the training loop"""
         step = self._global_step
+        self.init_simulator()
         if self._warm_up:
             self.fill_normalization_buffer()
-        else:
-            self.check_normalization_stats()
         remaining_steps = len(self._dataloaders["train"])
         if self._stop_step is not None:
             remaining_steps = max(remaining_steps, self._stop_step)
@@ -369,7 +373,8 @@ class Trainer:
                         device=self._device,
                         nsteps=self._rollout_steps,
                     )
-                except Exception as e:
+                except Exception:
+                    e = traceback.format_exc()
                     self._logger.print(
                         f"Failed to sample rollout with exception: {e}",
                         level="warn",

@@ -21,10 +21,12 @@
 # SOFTWARE.
 
 
-from typing import Dict
+from collections import defaultdict
+from typing import Dict, Union
 
 import torch
 import torch.nn as nn
+from torch_geometric.typing import NodeOrEdgeType
 
 from fignet.data import HeteroGraph
 from fignet.message_passing import EncodeProcessDecode
@@ -61,10 +63,10 @@ class LearnedSimulator(nn.Module):
         assert self._mesh_dimensions == 3
 
         self._is_initialized = False
-
-        self._node_normalizers: Dict[str, Normalizer] = {}
-        self._edge_normalizers: Dict[str, Normalizer] = {}
-        self._output_normalizer: Normalizer = None
+        self._encode_process_decode: EncodeProcessDecode = None
+        self._node_normalizers = defaultdict(Dict[str, Normalizer])
+        self._edge_normalizers = defaultdict(Dict[tuple, Normalizer])
+        self._output_normalizer = None
         self._device = device
         self._gnn_params = {
             "latent_dim": latent_dim,
@@ -72,15 +74,28 @@ class LearnedSimulator(nn.Module):
             "mlp_hidden_dim": mlp_hidden_dim,
             "message_passing_steps": message_passing_steps,
         }
+        self._init_info: Dict[str, Dict[NodeOrEdgeType, int]] = None
 
     @property
     def initialized(self):
         return self._is_initialized
 
-    def init(self, graph: HeteroGraph):
+    def init(
+        self,
+        init_info: Union[HeteroGraph, Dict[str, Dict[NodeOrEdgeType, int]]],
+    ):
         """Lazy initializer"""
-        node_dim_dict = graph.num_node_features
-        edge_dim_dict = graph.num_edge_features
+        if isinstance(init_info, HeteroGraph):
+            node_dim_dict = init_info.num_node_features
+            edge_dim_dict = init_info.num_edge_features
+            self._init_info = {
+                "node_dim_dict": node_dim_dict,
+                "edge_dim_dict": edge_dim_dict,
+            }
+        elif isinstance(init_info, dict):
+            node_dim_dict = init_info["node_dim_dict"]
+            edge_dim_dict = init_info["edge_dim_dict"]
+            self._init_info = init_info
         # self.graph_meta = graph.metadata
         self._node_normalizers = {}
         self._edge_normalizers = {}
@@ -108,12 +123,12 @@ class LearnedSimulator(nn.Module):
         output_dim_dict = {}
         for node_type in node_dim_dict.keys():
             output_dim_dict.update({node_type: self._mesh_dimensions})
+
         self._encode_process_decode = EncodeProcessDecode(
             input_dim_dict=input_dim_dict,
             output_dim_dict=output_dim_dict,
             **self._gnn_params,
         )
-
         self._is_initialized = True
 
     def denormalize_accelerations(
@@ -197,18 +212,31 @@ class LearnedSimulator(nn.Module):
         # TODO
         model = self.state_dict()
         _output_normalizer = self._output_normalizer.get_variable()
-        # _node_normalizer = self._node_normalizer.get_variable()
-        # _mo_edge_normalizer = self._mo_edge_normalizer.get_variable()
-        # _om_edge_normalizer = self._om_edge_normalizer.get_variable()
 
         save_data = {
             "model": model,
             "_output_normalizer": _output_normalizer,
-            # "_node_normalizer": _node_normalizer,
-            # "_mo_edge_normalizer": _mo_edge_normalizer,
-            # "_om_edge_normalizer": _om_edge_normalizer,
+            "_gnn_params": self._gnn_params,
+            "_init_info": self._init_info,
+            "_node_normalizers": defaultdict(
+                Dict[str, Dict[str, torch.Tensor]]
+            ),
+            "_edge_normalizers": defaultdict(
+                Dict[tuple, Dict[str, torch.Tensor]]
+            ),
         }
-        # for
+        for name, normalizer in self._node_normalizers.items():
+            save_data["_node_normalizers"].update(
+                {
+                    name: normalizer.get_variable(),
+                }
+            )
+        for name, normalizer in self._edge_normalizers.items():
+            save_data["_edge_normalizers"].update(
+                {
+                    name: normalizer.get_variable(),
+                }
+            )
         torch.save(save_data, path)
 
     def load(self, path: str):
@@ -218,20 +246,30 @@ class LearnedSimulator(nn.Module):
             path: Model path
         """
         dicts = torch.load(path, map_location=self._device)
-        self.load_state_dict(dicts["model"])
+        model = dicts.pop("model")
+        self._gnn_params = dicts.pop("_gnn_params")  # override gnn params
 
+        if not self.initialized:
+            self.init(dicts.pop("_init_info"))
+
+        self.load_state_dict(model)
+        # load normalizers
         keys = list(dicts.keys())
-        keys.remove("model")
-
         for k in keys:
             v = dicts[k]
-            for para, value in v.items():
-                object = eval("self." + k)
-                if isinstance(value, torch.Tensor):
-                    setattr(object, para, value.to(self._device))
-                else:
-                    setattr(object, para, value)
-
+            object = getattr(self, k)
+            if isinstance(object, Normalizer):
+                object.set_variable(v)
                 object.to(self._device)
+            elif isinstance(object, dict) and k in [
+                "_node_normalizers",
+                "_edge_normalizers",
+            ]:
+                for name, params in v.items():
+                    object[name].set_variable(params)
+                    object[name].to(self._device)
+            else:
+                raise TypeError("Unknown attribute")
 
         print("Simulator model loaded checkpoint %s" % path)
+        self._is_initialized = True

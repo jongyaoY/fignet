@@ -55,6 +55,7 @@ class Normalizer(nn.Module):
         self._acc_sum_squared = torch.zeros(
             (1, size), dtype=torch.float32, requires_grad=False, device=device
         )
+        self._device = device
 
     def forward(self, batched_data, accumulate=True):
         """Normalizes input data and accumulates statistics."""
@@ -122,3 +123,10 @@ class Normalizer(nn.Module):
         }
 
         return dict
+
+    def set_variable(self, var_dict):
+        for para, value in var_dict.items():
+            if isinstance(value, torch.Tensor):
+                setattr(self, para, value.to(self._device))
+            else:
+                setattr(self, para, value)
