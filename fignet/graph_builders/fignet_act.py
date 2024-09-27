@@ -24,9 +24,10 @@ import numpy as np
 
 from fignet.graph_builders.common import GraphMetaData
 from fignet.scene import SceneInfoDict, SceneInfoKey
-from fignet.types import MOEdge, OMEdge
+from fignet.types import MeshNode, MOEdge, ObjNode, OMEdge
 
 EdgeTypes = [MOEdge, OMEdge]
+NodeTypes = [MeshNode, ObjNode]
 
 meta_data = GraphMetaData(node_dim=8, edge_dim=8)
 
