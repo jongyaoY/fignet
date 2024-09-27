@@ -92,23 +92,35 @@ class EdgeConv(MessagePassing):
         hyper_edge = False
         if edge_index.ndim == 3:
             edge_index = edge_index.view(
-                -1, edge_index.shape[1] * edge_index.shape[2]
+                2, edge_index.shape[1] * edge_index.shape[2]
             )
             hyper_edge = True
-        edge_attr_updated, aggr = self.propagate(
-            x=x,
-            edge_index=edge_index,
-            edge_attr=edge_attr,
-            hyper_edge=hyper_edge,
-        )
-        # x_updated = self.node_fn(torch.cat((x[r_dim], aggr), dim=-1))
-        return edge_attr + edge_attr_updated.view(edge_attr.shape[0], -1), aggr
+        if edge_index.shape[1] == 0:
+            if isinstance(x, torch.Tensor):
+                aggr = torch.zeros_like(x)
+            elif isinstance(x, tuple):
+                aggr = torch.zeros_like(x[1])
+            else:
+                raise NotImplementedError
+            return edge_attr, aggr
+        else:
+            edge_attr_updated, aggr = self.propagate(
+                x=x,
+                edge_index=edge_index,
+                edge_attr=edge_attr,
+                hyper_edge=hyper_edge,
+            )
+            return (
+                edge_attr + edge_attr_updated.view(edge_attr.shape[0], -1),
+                aggr,
+            )
 
     def message(
         self, x_i, x_j, edge_attr, hyper_edge: bool
     ):  # receiver  # sender
         if hyper_edge:
             num_edge = edge_attr.shape[0]
+            assert num_edge != 0
             e_latent = torch.hstack(
                 [x_i, x_j, edge_attr.view(x_i.shape[0], -1)]
             ).view(

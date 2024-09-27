@@ -28,6 +28,7 @@ from torch import Tensor
 from torch_geometric.nn import HeteroConv
 
 
+# TODO
 def group(xs: List[Tensor], aggr: Optional[str]) -> Optional[Tensor]:
     if len(xs) == 0:
         return None
