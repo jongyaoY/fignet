@@ -126,38 +126,6 @@ def render_simulator(
     learned_sim: fignet.LearnedSimulator, ep_i, off_screen=True
 ):
 
-    # mujoco_scene = None
-    # sim = None
-    # for _ in range(10):
-    #     mujoco_scene = rigid_fall.Scene(random_floor=True)
-    #     mujoco_scene.add_objects(
-    #         rigid_fall.random_objects(num_range=num_object_range)
-    #     )
-    #     try:
-    #         sim, _ = rigid_fall.init_sim(mujoco_scene, has_renderer=False)
-    #         break
-    #     except ValueError:
-    #         mujoco_scene = None
-    #         sim = None
-    #         continue
-    # if sim is None:
-    #     raise RuntimeError("Failed to initialize mujoco simulation")
-
-    # successful_rollout = False
-    # for _ in range(10):
-    #     gt_data = rigid_fall.init_data(scene=mujoco_scene, sim=sim)
-
-    #     successful_rollout = rigid_fall.rollout(
-    #         sim,
-    #         gt_data,
-    #         ep_length,
-    #         internal_steps=internal_steps,
-    #         spawn_region=SPAWN_REGION,
-    #     )
-    #     if successful_rollout:
-    #         break
-    # if not successful_rollout:
-    #     raise RuntimeError("Failed to sample rollout")
     if load_from != "":
         data = list(np.load(load_from, allow_pickle=True).values())[0]
         gt_data = data[ep_i]
@@ -186,6 +154,7 @@ def render_simulator(
             fignet.Scene(meta_data),
             device,
             ep_length,
+            builder_config={"type": "fig_plus"},  # ! debug
         )
 
         screen_prd = fignet.visualize_trajectory(
@@ -207,9 +176,8 @@ if __name__ == "__main__":
     learned_sim = fignet.LearnedSimulator(
         mesh_dimensions=3,
         latent_dim=latent_dim,
-        nmessage_passing_steps=10,
-        nmlp_layers=2,
-        input_seq_length=input_seq_length,
+        message_passing_steps=10,
+        mlp_layers=2,
         mlp_hidden_dim=latent_dim,
         device=device,
         leave_out_mm=leave_out_mm,
