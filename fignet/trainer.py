@@ -34,6 +34,7 @@ from torch_geometric.transforms import ToDevice
 from torchvision import transforms as T
 
 from fignet.data_loader import MujocoDataset, collate_fn
+from fignet.graph_builders import FIGNodeType
 from fignet.logger import Logger
 from fignet.scene import Scene
 from fignet.simulator import LearnedSimulator
@@ -182,7 +183,7 @@ class Trainer:
 
             sample = self.to_device(sample)
             self._sim._encoder_preprocessor(sample)
-            self._sim.normalize_accelerations(sample["mesh"].y)
+            self._sim.normalize_accelerations(sample[FIGNodeType.VERT].y)
 
             # self.check_normalization_stats()
             pbar.update(1)
@@ -271,11 +272,13 @@ class Trainer:
     def cal_loss(self, sample):
         """Calculate loss"""
         non_kinematic_mask = (
-            sample["mesh"].kinematic == KinematicType.DYNAMIC
+            sample[FIGNodeType.VERT].kinematic == KinematicType.DYNAMIC
         ).to(self._device)
         sample = self.to_device(sample)
         pred_acc, _ = self._sim.predict_accelerations(sample)
-        target_acc = self._sim.normalize_accelerations(sample["mesh"].y)
+        target_acc = self._sim.normalize_accelerations(
+            sample[FIGNodeType.VERT].y
+        )
 
         loss = torch.nn.functional.mse_loss(
             pred_acc, target_acc, reduction="none"

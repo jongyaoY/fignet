@@ -23,12 +23,20 @@
 import numpy as np
 
 from fignet.graph_builders.base import GraphBuilder
-from fignet.graph_builders.common import GraphMetaData
+from fignet.graph_builders.common import (
+    FIGEdgeType,
+    FIGNodeType,
+    GraphMetaData,
+    cal_inner_connectivity,
+)
 from fignet.scene import SceneInfoDict, SceneInfoKey
-from fignet.types import MeshNode, MOEdge, ObjNode, OMEdge
 
-EdgeTypes = [MOEdge, OMEdge]
-NodeTypes = [MeshNode, ObjNode]
+EdgeTypes = [
+    FIGEdgeType.OConnectV,
+    FIGEdgeType.VConnectO,
+    FIGEdgeType.VCollideO,
+]
+NodeTypes = [FIGNodeType.VERT, FIGNodeType.OBJECT]
 
 meta_data = GraphMetaData(node_dim=8, edge_dim=8)
 
@@ -39,7 +47,7 @@ class FIG_PlusBuilder(GraphBuilder):
         features = None
         if index.shape[1] == 0:
             return np.empty((0, meta_data.edge_dim), dtype=np.float64)
-        if edge_type == MOEdge:
+        if edge_type == FIGEdgeType.VCollideO:
             assert (
                 edge_info["contact_points"].shape[0] == index.shape[1]
             )  # num edges
@@ -55,15 +63,30 @@ class FIG_PlusBuilder(GraphBuilder):
             features = np.concatenate(
                 [p2_v1, p2_o2, p2_v1_norm, p2_o2_norm], axis=-1
             )
-        elif edge_type == OMEdge:
+        elif (
+            edge_type == FIGEdgeType.OConnectV
+            or edge_type == FIGEdgeType.VConnectO
+        ):
             obj_com = edge_info["com_pos"]
             vert_pos = edge_info["verts_pos"]
             obj_ref_com = edge_info["com_ref_pos"]
             vert_ref_pos = edge_info["verts_ref_pos"]
+
+            if edge_type == FIGEdgeType.OConnectV:
+                lhs = obj_com
+                lhs_ref = obj_ref_com
+                rhs = vert_pos
+                rhs_ref = vert_ref_pos
+            else:
+                lhs = vert_pos
+                lhs_ref = vert_ref_pos
+                rhs = obj_com
+                rhs_ref = obj_ref_com
+
             s_index = index[0]
             r_index = index[1]
-            d_rs = obj_com[s_index] - vert_pos[r_index]
-            d_rs_ref = obj_ref_com[s_index] - vert_ref_pos[r_index]
+            d_rs = lhs[s_index] - rhs[r_index]
+            d_rs_ref = lhs_ref[s_index] - rhs_ref[r_index]
             d_rs = np.concatenate(
                 [d_rs, np.linalg.norm(d_rs, axis=1, keepdims=True)], axis=-1
             )
@@ -83,7 +106,7 @@ class FIG_PlusBuilder(GraphBuilder):
             senders = []
             receivers = []
             edge_info = {}
-            if edge_type == MOEdge:
+            if edge_type == FIGEdgeType.VCollideO:
                 contact_paris = scn_info[SceneInfoKey.CONTACT_PAIRS]
                 edge_info["contact_points"] = []
                 edge_info["contact_normals"] = []
@@ -116,36 +139,14 @@ class FIG_PlusBuilder(GraphBuilder):
                 edge_info["contact_normals"] = np.asarray(
                     edge_info["contact_normals"]
                 )
-            elif edge_type == OMEdge:
-                for name, obj_id in scn_info[
-                    SceneInfoKey.OBJ_OFFSETS_DICT
-                ].items():
-                    m_offset = scn_info[SceneInfoKey.VERT_OFFSETS_DICT].get(
-                        name
-                    )
-                    o_offset = obj_id
-                    s_idx = np.repeat(
-                        0, scn_info[SceneInfoKey.NUM_VERTS_DICT].get(name)
-                    )
-                    r_idx = np.arange(
-                        0,
-                        scn_info[SceneInfoKey.NUM_VERTS_DICT].get(name),
-                        dtype=np.int64,
-                    )
-                    s_idx = s_idx + o_offset
-                    r_idx = r_idx + m_offset
-
-                    senders.append(s_idx)
-                    receivers.append(r_idx)
-                edge_info["verts_pos"] = scn_info[SceneInfoKey.VERT_SEQ][
-                    -1, ...
-                ]
-                edge_info["com_pos"] = scn_info[SceneInfoKey.COM_SEQ][-1, ...]
-                edge_info["verts_ref_pos"] = scn_info[
-                    SceneInfoKey.VERT_REF_POS
-                ]
-                edge_info["com_ref_pos"] = scn_info[SceneInfoKey.COM_REF_POS]
-
+            elif edge_type == FIGEdgeType.OConnectV:
+                senders, receivers, edge_info = cal_inner_connectivity(
+                    scn_info=scn_info, direction="o-v"
+                )
+            elif edge_type == FIGEdgeType.VConnectO:
+                senders, receivers, edge_info = cal_inner_connectivity(
+                    scn_info=scn_info, direction="v-o"
+                )
             else:
                 raise NotImplementedError
 
@@ -163,6 +164,9 @@ class FIG_PlusBuilder(GraphBuilder):
             )
             index_dict.update({edge_type: index})
             attr_dict.update({edge_type: attr})
+
+        # index_dict[FIGEdgeType.VConnectO] = index_dict[FIGEdgeType.OConnectV][[1,0]]
+        # attr_dict[FIGEdgeType.VConnectO] = attr_dict[FIGEdgeType.OConnectV]
         return index_dict, attr_dict
 
     def cal_node_attr(self, scn_info: SceneInfoDict):
@@ -191,7 +195,15 @@ class FIG_PlusBuilder(GraphBuilder):
         m_features = np.concatenate(m_features, axis=-1)
         o_features = np.concatenate(o_features, axis=-1)
         node_attr_dict = {
-            "mesh": {"x": m_features, "kinematic": m_kin, "y": m_target},
-            "object": {"x": o_features, "kinematic": o_kin, "y": o_target},
+            FIGNodeType.VERT: {
+                "x": m_features,
+                "kinematic": m_kin,
+                "y": m_target,
+            },
+            FIGNodeType.OBJECT: {
+                "x": o_features,
+                "kinematic": o_kin,
+                "y": o_target,
+            },
         }
         return node_attr_dict

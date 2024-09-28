@@ -32,9 +32,9 @@ from torch_geometric.typing import EdgeType, NodeType
 from torch_scatter import scatter
 
 from fignet.data import HeteroGraph
+from fignet.graph_builders import FIGEdgeType, FIGNodeType
 from fignet.modules.base_models import Decoder, Encoder, build_mlp
 from fignet.modules.hetero_conv import GenericHeteroConv
-from fignet.types import FFEdge
 
 
 class NodeConv(nn.Module):
@@ -169,7 +169,7 @@ class Processor(nn.Module):
             for edge_type in edge_types:
                 param_local = params.copy()
                 param_local.pop("node_out_dim")
-                if edge_type == FFEdge:
+                if edge_type == FIGEdgeType.VCollideV:
                     param_local["edge_out_dim"] = (
                         3 * param_local["edge_out_dim"]
                     )  # TODO: hardcoded 3
@@ -235,7 +235,9 @@ class EncodeProcessDecode(nn.Module):
                 input_type, tuple
             ):  # TODO: check typing with EdgeType
                 edge_types.append(input_type)
-                if input_type == FFEdge:  # TODO: get rid of explicit edge type
+                if (
+                    input_type == FIGEdgeType.VCollideV
+                ):  # TODO: get rid of explicit edge type
                     out_dim = 3 * latent_dim  # TODO: hardcoded 3
                 # input_type = input_type[1] # TODO: nn.ModuleDict takes only str keys
             else:
@@ -279,4 +281,4 @@ class EncodeProcessDecode(nn.Module):
         out = {}
         for node_type in latent_out.keys():
             out[node_type] = self.decoders[node_type](latent_out[node_type])
-        return out["mesh"], out["object"]  # TODO
+        return out[FIGNodeType.VERT], out[FIGNodeType.OBJECT]

@@ -21,19 +21,12 @@
 # SOFTWARE.
 
 import enum
-from dataclasses import asdict, dataclass, field, fields, is_dataclass
-from typing import Dict, Union
+from typing import Union
 
 import numpy as np
-from dacite import from_dict
 from torch import Tensor
 
 TensorType = Union[np.ndarray, Tensor]
-MOEdge = ("mesh", "m-o", "object")
-OMEdge = ("object", "o-m", "mesh")
-FFEdge = ("mesh", "f-f", "mesh")
-MeshNode = "mesh"
-ObjNode = "object"
 
 
 class MetaEnum(enum.EnumMeta):
@@ -49,83 +42,3 @@ class KinematicType(enum.IntEnum):
     STATIC = 0
     DYNAMIC = 1
     SIZE = 1
-
-
-class NodeType(enum.Enum, metaclass=MetaEnum):
-    MESH = "mesh"
-    OBJECT = "object"
-
-
-class EdgeType(enum.Enum, metaclass=MetaEnum):
-    MESH_MESH = "mesh-mesh"
-    MESH_OBJ = "mesh-object"
-    OBJ_MESH = "object-mesh"
-    FACE_FACE = "face-face"
-
-
-def key_to_string(key):
-    if isinstance(key, str):
-        return key
-    elif isinstance(key, enum.Enum):
-        return key.value
-    else:
-        raise ValueError(f"{type(key)} not supported")
-
-
-def string_to_enum(k_str, enum_list):
-    for e in enum_list:
-        if k_str in e:
-            return e(k_str)
-
-
-def to_dict(item):
-    d = {}
-    if isinstance(item, Dict):
-        for k, v in item.items():
-            d.update({key_to_string(k): to_dict(v)})
-        return d
-    elif is_dataclass(item):
-        return to_dict(asdict(item))
-    else:
-        return item
-
-
-@dataclass
-class NodeFeature:
-    position: TensorType
-    kinematic: TensorType
-    properties: TensorType
-    target: TensorType = None
-
-
-@dataclass
-class Edge:
-    attribute: TensorType
-    index: TensorType
-
-
-@dataclass
-class Graph:
-    node_sets: Dict[NodeType, NodeFeature] = field(default_factory=lambda: {})
-    edge_sets: Dict[EdgeType, Edge] = field(default_factory=lambda: {})
-
-    def to_dict(self):
-        return to_dict(self)
-
-    def from_dict(self, d):
-        for f in fields(self):
-            field_name = f.name
-            if field_name not in d:
-                continue
-            if field_name == "node_sets":
-                d_cls = NodeFeature
-            elif field_name == "edge_sets":
-                d_cls = Edge
-            for k, v in d[field_name].items():
-                getattr(self, field_name).update(
-                    {
-                        string_to_enum(k, [NodeType, EdgeType]): from_dict(
-                            d_cls, v
-                        )
-                    }
-                )
