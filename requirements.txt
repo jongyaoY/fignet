@@ -6,7 +6,7 @@ tqdm==4.63.0
 trimesh==3.21.7
 numpy==1.23.1
 tensorboard==2.13.0
-dacite==1.8.1
 pyyaml
 moviepy
 Pillow==9.5.0
+torch_geometric==2.4.0
