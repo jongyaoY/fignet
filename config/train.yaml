@@ -1,7 +1,7 @@
 # Training params
 use_cuda: true
-batch_size: 4
-num_workers: 2
+batch_size: 32
+num_workers: 8
 lr_init: 1.0e-3
 lr_decay_rate: 0.1
 lr_decay_steps: 1.0e+6
@@ -18,12 +18,15 @@ run_validate: true
 num_eval_rollout: 10
 save_video: true
 # Dataset
-data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_100K.npz"
+data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_100K"
 test_data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_10K.npz"
 data_config:
   noise_std: 3.0e-5
   connectivity_radius: 0.01
   input_seq_length: 3
+graph_builder:
+  type: 'fig'
+  noise_std: 3.0e-5
 # Logging
 logging_folder: "log"
 log_level: "info"
