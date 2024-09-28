@@ -622,3 +622,4 @@ class EncodeProcessDecode(nn.Module):
         return self._m_decoder(mesh_n_latent_out), self._o_decoder(
             obj_n_latent_out
         )
+

@@ -70,7 +70,8 @@ class Trainer:
         self._datasets = {}
         self._dataloaders = {}
 
-        transform = T.Compose([ToHeteroGraph(config.get("data_config"))])
+        transform = T.Compose([ToHeteroGraph(config.get("graph_builder"))])
+        self._builder_config = config.get("graph_builder")
         self._datasets["train"] = MujocoDataset(
             data_path,
             self._input_seq_length,
@@ -372,6 +373,7 @@ class Trainer:
                         scene=Scene(scene_config),
                         device=self._device,
                         nsteps=self._rollout_steps,
+                        builder_config=self._builder_config,
                     )
                 except Exception:
                     e = traceback.format_exc()

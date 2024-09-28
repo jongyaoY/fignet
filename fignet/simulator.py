@@ -29,7 +29,7 @@ import torch.nn as nn
 from torch_geometric.typing import NodeOrEdgeType
 
 from fignet.data import HeteroGraph
-from fignet.message_passing import EncodeProcessDecode
+from fignet.modules.message_passing import EncodeProcessDecode
 from fignet.normalization import Normalizer
 
 # from fignet.types import KinematicType, MOEdge, NodeType, OMEdge

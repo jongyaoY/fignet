@@ -27,12 +27,16 @@ import torch
 import tqdm
 from robosuite.utils import OpenCVRenderer
 from robosuite.utils.binding_utils import MjRenderContext, MjSim
+from torch_geometric.transforms import ToDevice
 
 from fignet.utils.conversion import to_numpy
 from fignet.utils.geometric import pose_to_transform, transform_to_pose
+from fignet.utils.scene import build_graph
 
 
-def rollout(sim, init_obj_poses, obj_ids, scene, device, nsteps):
+def rollout(
+    sim, init_obj_poses, obj_ids, scene, device, nsteps, builder_config
+):
     if isinstance(init_obj_poses, torch.Tensor):
         init_obj_poses = to_numpy(init_obj_poses)
     scene.synchronize_states(init_obj_poses, obj_ids)
@@ -42,12 +46,7 @@ def rollout(sim, init_obj_poses, obj_ids, scene, device, nsteps):
         range(nsteps - init_obj_poses.shape[0]), desc="sampling rollout"
     ):
         graph = scene.to_dict()
-        # TODO: move to somewhere else
-        from torch_geometric.transforms import ToDevice
-
-        from fignet.utils.scene import build_graph
-
-        graph = build_graph(graph)
+        graph = build_graph(graph, builder_config)
         m_pred_acc, o_pred_acc = sim.predict_accelerations(
             ToDevice(device)(graph)
         )

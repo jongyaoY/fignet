@@ -32,7 +32,7 @@ from torch_geometric.typing import EdgeType, NodeType
 from torch_scatter import scatter
 
 from fignet.data import HeteroGraph
-from fignet.graph_networks import Decoder, Encoder, build_mlp
+from fignet.modules.base_models import Decoder, Encoder, build_mlp
 from fignet.modules.hetero_conv import GenericHeteroConv
 from fignet.types import FFEdge
 
@@ -121,6 +121,7 @@ class EdgeConv(MessagePassing):
         if hyper_edge:
             num_edge = edge_attr.shape[0]
             assert num_edge != 0
+            # edge_attr = edge_attr.view(num_edge, 3, -1)
             e_latent = torch.hstack(
                 [x_i, x_j, edge_attr.view(x_i.shape[0], -1)]
             ).view(

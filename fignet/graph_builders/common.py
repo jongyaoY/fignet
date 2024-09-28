@@ -20,20 +20,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import enum
 from dataclasses import dataclass
+from typing import Dict
+
+import numpy as np
+from torch_geometric.typing import EdgeType, NodeType
 
 from fignet.types import MetaEnum
 
 
-class GraphBuildType(MetaEnum):
+class GraphBuildType(enum.Enum, metaclass=MetaEnum):
     """Ways of constructing input graph"""
 
     FIGNET = "fignet"
-    FIGNET_STAR = "fignet*"
     FIGNET_ACT = "fignet_act"
+
+
+class FIGNetNodeType(MetaEnum):
+    MESH = "mesh"
+    OBJECT = "object"
 
 
 @dataclass
 class GraphMetaData:
     node_dim: int
     edge_dim: int
+
+
+@dataclass
+class GraphBuildResult:
+    node_attr_dict: Dict[NodeType, np.ndarray]
+    edge_index_dict: Dict[EdgeType, np.ndarray]
+    edge_attr_dict: Dict[EdgeType, np.ndarray]
