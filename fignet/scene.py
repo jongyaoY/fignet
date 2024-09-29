@@ -65,7 +65,7 @@ class Scene:
     connectivity
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, scn_desc: dict, collision_radius: float):
         self._mesh_dim = 3
         self._dim_properties = None
         self._num_vertices = 0
@@ -76,16 +76,15 @@ class Scene:
         self._obj_kin = {}
         self._vert_offsets = {}
         self._obj_ids = {}
-        self._connectivity_radius = config.get("connectivity_radius", 0.005)
-        self._noise_std = config.get("noise_std", 0.0)
+        self._collision_radius = collision_radius
         self._collision_manager = CollisionManager(
-            security_margin=self._connectivity_radius
+            security_margin=self._collision_radius
         )
         self._verts_ref_pos = None
         # Initialize scene
 
         # Create env objects
-        for name, env_obj in config.get("env").items():
+        for name, env_obj in scn_desc.get("env").items():
             if name == "floor":
                 mesh = trimesh.creation.box(extents=env_obj.get("extents"))
             else:
@@ -100,7 +99,7 @@ class Scene:
             )
             self._set_obj_properties(name, env_obj["properties"])
         # Load meshes
-        for name, obj in config.get("objects").items():
+        for name, obj in scn_desc.get("objects").items():
             mesh = trimesh.load(obj["mesh"])
             trimesh.repair.fix_normals(mesh)
             self.add_object(

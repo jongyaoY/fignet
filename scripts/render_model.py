@@ -134,9 +134,8 @@ def render_simulator(
 
     mujoco_xml = str(gt_data["mujoco_xml"])
     obj_id = dict(gt_data["obj_id"].item())
-    meta_data = dict(gt_data["meta_data"].item())
-    meta_data["connectivity_radius"] = 0.01  # TODO: load from config
-    # meta_data["noise_std"] = 3e-5
+    scn_desc = dict(gt_data["meta_data"].item())
+    collision_radius = 0.01  # TODO: load from config
     gt_traj = np.concatenate([gt_data["pos"], gt_data["quat"]], axis=2)
     screen_gt = fignet.visualize_trajectory(
         mujoco_xml,
@@ -151,10 +150,10 @@ def render_simulator(
             learned_sim,
             gt_traj[:input_seq_length, ...],
             obj_id,
-            fignet.Scene(meta_data),
+            fignet.Scene(scn_desc=scn_desc, collision_radius=collision_radius),
             device,
             ep_length,
-            builder_config={"type": "fig_plus"},  # ! debug
+            builder_config={"type": "fig"},  # ! debug
         )
 
         screen_prd = fignet.visualize_trajectory(

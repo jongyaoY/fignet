@@ -151,19 +151,15 @@ class MujocoDataset(torch.utils.data.Dataset):
                 [target_posisitons, target_quats], axis=-1
             )
 
-            scene_config = dict(self._data[trajectory_idx]["meta_data"].item())
+            scn_desc = dict(self._data[trajectory_idx]["meta_data"].item())
 
             connectivity_radius = self._config.get("connectivity_radius")
-            if connectivity_radius is not None:
-                scene_config.update(
-                    {"connectivity_radius": connectivity_radius}
-                )
+            if connectivity_radius is None:
+                connectivity_radius = 0.01  # TODO
 
-            noise_std = self._config.get("noise_std")
-            if noise_std is not None:
-                scene_config.update({"noise_std": noise_std})
-
-            scn = Scene(scene_config)
+            scn = Scene(
+                scn_desc=scn_desc, collision_radius=connectivity_radius
+            )
             scn.synchronize_states(
                 obj_poses=poses,
                 obj_ids=obj_ids,
@@ -200,13 +196,7 @@ class MujocoDataset(torch.utils.data.Dataset):
         obj_ids = self._data[trajectory_idx]["obj_id"]
         obj_ids = dict(obj_ids.item())
         mujoco_xml = str(self._data[trajectory_idx]["mujoco_xml"])
-        scene_config = dict(self._data[trajectory_idx]["meta_data"].item())
-
-        try:
-            connectivity_radius = self._config["connectivity_radius"]
-            scene_config.update({"connectivity_radius": connectivity_radius})
-        except KeyError:
-            pass
+        scn_desc = dict(self._data[trajectory_idx]["meta_data"].item())
         positions = self._data[trajectory_idx]["pos"][
             start:end
         ]  # (seq_len, n_obj, 3) input sequence
@@ -218,4 +208,4 @@ class MujocoDataset(torch.utils.data.Dataset):
         traj = {"obj_ids": obj_ids, "pose_seq": pose_seq}
         if self._transform is not None:
             traj = self._transform(traj)
-        return traj, mujoco_xml, scene_config
+        return traj, mujoco_xml, scn_desc

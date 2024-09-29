@@ -358,7 +358,7 @@ class Trainer:
                 # Get initial states
                 traj = data[0]
                 mujoco_xml = data[1]
-                scene_config = data[2]
+                scn_desc = data[2]
                 init_poses = traj["pose_seq"][0:input_seq_length, ...]
                 gt_poses = to_numpy(traj["pose_seq"])
                 gt_poses = np.delete(gt_poses, 0, axis=0)
@@ -373,7 +373,9 @@ class Trainer:
                         sim=self._sim,
                         init_obj_poses=init_poses,
                         obj_ids=obj_ids,
-                        scene=Scene(scene_config),
+                        scene=Scene(
+                            scn_desc=scn_desc, collision_radius=0.01  # TODO
+                        ),
                         device=self._device,
                         nsteps=self._rollout_steps,
                         builder_config=self._builder_config,
