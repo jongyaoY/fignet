@@ -93,11 +93,18 @@ detection results.
 
 Because of the object-mesh edges and the novel face-face edges, the
 graph consists of two sets of nodes (mesh and object nodes) and four sets of edges
-(mesh-mesh, mesh-object, object-mesh, face-face). According to
+(vert-vert, vert-object, object-vert, face-face). According to
 following work of FIGNet \[2\], omitting
 the mesh-mesh edges helps the model to scale without affecting the accuracy.
 The implementation also adds the option to omit the mesh-mesh edges. Finally, the message passing layer
 is augmented to handle face-face message passing.
+
+Inspired by SDF-Sim \[4\], we
+also add a new graph structure (referred to as **FIG+/FIG plus**
+in the
+implementation), where face-face edges are replaced by
+vert-object edges, such that colliding vertices directly propagate information
+to object nodes. Which graph structure to use is configurable.
 
 ## How to Install
 
@@ -193,8 +200,55 @@ For the training you need to pass in a config file; a template can be found in
 the train and test dataset respectively. For train dataset, it can be the raw
 dataset (npz file) or the folder containing pre-computed graphs, while the test
 dataset should be a npz file. Also adapt `batch_size` and `num_workers`
-accordingly. As mentioned above, omitting the mesh-mesh edges improves the memory
-efficiency \[2\]. Set `leave_out_mm=True` for better scalability.
+accordingly.
+
+<details>
+   <summary>Training config</summary>
+
+```yaml
+  # Training params
+  use_cuda: true
+  batch_size: 32
+  num_workers: 8
+  lr_init: 1.0e-3
+  lr_decay_rate: 0.1
+  lr_decay_steps: 1.0e+6
+  training_steps: 1.0e+6
+  warmup_steps: 1
+  # Evaluation
+  loss_report_step: 2000
+  log_grad: True
+  log_grad_step: 10000
+  save_model_step: 2000
+  eval_step: 2000
+  rollout_steps: 50
+  run_validate: true
+  num_eval_rollout: 10
+  save_video: true
+  # Dataset
+  data_path: "[path to dataset]"
+  test_data_path: "[path to dataset]"
+  # Simulator params
+  simulator:
+    collision_radius: 0.01
+    input_seq_length: 3
+    graph_builder:
+      type: 'fig' # options are ['fig', 'fig_plus']
+      noise_std: 3.0e-5
+  # Logging
+  logging_folder: "log"
+  log_level: "info"
+  # continue_log_from: "[log folder name]"
+  # Resume training
+  # model_file: "[path_to_model/models/weights_itr_22000.ckpt]"
+  # train_state_file: "[path_to_model/models/train_state_itr_22000.ckpt]"
+  # GNN params
+  latent_dim: 128
+  message_passing_steps: 10
+  mlp_layers: 2
+```
+
+</details>
 
 ```bash
 python scripts/train.py --config_file=config/train.yaml
@@ -308,6 +362,10 @@ Carpentier, J., & Montaut, L. (2024).
 HPP-FCL - An extension of the Flexible
 Collision Library (Version 2.4.4) [Computer software].
 [https://github.com/humanoid-path-planner/hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl)
+
+<a id="4">\[4\]</a> Rubanova, Yulia, et al. "Learning rigid-body simulators
+over implicit shapes for large-scale scenes and vision." arXiv preprint
+arXiv:2405.14045 (2024).
 
 ## License
 

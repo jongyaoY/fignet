@@ -30,12 +30,7 @@ simulator:
 # Logging
 logging_folder: "log"
 log_level: "info"
-# continue_log_from: "2024-09-19-19:11"
-# Resume training
-# model_file: "log/2024-09-19-19:11/models/weights_itr_22000.ckpt"
-# train_state_file: "log/2024-09-19-19:11/models/train_state_itr_22000.ckpt"
-# Simulator params
-leave_out_mm: True
+# GNN params
 latent_dim: 128
 message_passing_steps: 10
 mlp_layers: 2
