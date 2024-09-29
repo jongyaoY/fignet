@@ -42,18 +42,16 @@ class LearnedSimulator(nn.Module):
         mlp_layers: int,
         mlp_hidden_dim: int,
         device="cpu",
-        leave_out_mm: bool = False,
     ):
         """Initializer
 
         Args:
             mesh_dimensions (int): Mesh position dimension, 3 for 3d meshes
             latent_dim (int): Latent feature dimension
-            nmessage_passing_steps (int): Number of message passing steps
-            nmlp_layers (int): Number of MLP layers mlp_hidden_dim (int):
+            message_passing_steps (int): Number of message passing steps
+            mlp_layers (int): Number of MLP layers mlp_hidden_dim (int):
             Hidden MLP dimension
             device (str, optional): Defaults to "cpu".
-            leave_out_mm (bool): Ignore mm edges
         """
         super(LearnedSimulator, self).__init__()
 
