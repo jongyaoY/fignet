@@ -71,7 +71,6 @@ num_ep = args.num_ep
 height = args.height
 width = args.width
 split_video = args.split_video
-input_seq_length = args.input_seq_length
 video_path = os.path.join(os.getcwd(), video_path)
 duration = 1
 
@@ -136,6 +135,7 @@ def render_simulator(
     obj_id = dict(gt_data["obj_id"].item())
     scn_desc = dict(gt_data["meta_data"].item())
     gt_traj = np.concatenate([gt_data["pos"], gt_data["quat"]], axis=2)
+    input_seq_length = learned_sim.cfg.input_sequence_length
     screen_gt = fignet.visualize_trajectory(
         mujoco_xml,
         gt_traj[input_seq_length - 1 :, ...],
