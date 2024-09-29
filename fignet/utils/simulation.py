@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 import time
+from typing import Dict, Union
 
 import numpy as np
 import torch
@@ -29,16 +30,24 @@ from robosuite.utils import OpenCVRenderer
 from robosuite.utils.binding_utils import MjRenderContext, MjSim
 from torch_geometric.transforms import ToDevice
 
+from fignet.scene import Scene
+from fignet.simulator import LearnedSimulator
 from fignet.utils.conversion import to_numpy
 from fignet.utils.geometric import pose_to_transform, transform_to_pose
 from fignet.utils.scene import build_graph
 
 
 def rollout(
-    sim, init_obj_poses, obj_ids, scene, device, nsteps, builder_config
+    sim: LearnedSimulator,
+    init_obj_poses: np.ndarray,
+    obj_ids: Dict[str, int],
+    scn_desc: dict,
+    device: Union[torch.device, str],
+    nsteps: int,
 ):
     if isinstance(init_obj_poses, torch.Tensor):
         init_obj_poses = to_numpy(init_obj_poses)
+    scene = Scene(scn_desc=scn_desc, collision_radius=sim.cfg.collision_radius)
     scene.synchronize_states(init_obj_poses, obj_ids)
     obj_poses = init_obj_poses[-1, ...]
     trajectory = np.vstack([obj_poses[None, :]])
@@ -46,7 +55,7 @@ def rollout(
         range(nsteps - init_obj_poses.shape[0]), desc="sampling rollout"
     ):
         graph = scene.to_dict()
-        graph = build_graph(graph, builder_config)
+        graph = build_graph(graph, sim.cfg.build_cfg, sim.training)
         m_pred_acc, o_pred_acc = sim.predict_accelerations(
             ToDevice(device)(graph)
         )

@@ -135,7 +135,6 @@ def render_simulator(
     mujoco_xml = str(gt_data["mujoco_xml"])
     obj_id = dict(gt_data["obj_id"].item())
     scn_desc = dict(gt_data["meta_data"].item())
-    collision_radius = 0.01  # TODO: load from config
     gt_traj = np.concatenate([gt_data["pos"], gt_data["quat"]], axis=2)
     screen_gt = fignet.visualize_trajectory(
         mujoco_xml,
@@ -148,12 +147,11 @@ def render_simulator(
     if not only_ground_truth:
         pred_traj = fignet.rollout(
             learned_sim,
-            gt_traj[:input_seq_length, ...],
-            obj_id,
-            fignet.Scene(scn_desc=scn_desc, collision_radius=collision_radius),
-            device,
-            ep_length,
-            builder_config={"type": "fig"},  # ! debug
+            init_obj_poses=gt_traj[:input_seq_length, ...],
+            obj_ids=obj_id,
+            scn_desc=scn_desc,
+            device=device,
+            nsteps=ep_length,
         )
 
         screen_prd = fignet.visualize_trajectory(
@@ -179,8 +177,25 @@ if __name__ == "__main__":
         mlp_layers=2,
         mlp_hidden_dim=latent_dim,
         device=device,
-        leave_out_mm=leave_out_mm,
     )
+    dicts = torch.load(model_path, map_location=device)
+    # !adhoc solution to load weights from old models
+    if "cfg" not in dicts:
+        from fignet.graph_builders import FIGEdgeType, GraphBuildCfg
+        from fignet.simulator import SimCfg
+
+        if FIGEdgeType.VCollideV in dicts["_edge_normalizers"]:
+            type = "fig"
+        else:
+            type = "fig_plus"
+        builder_cfg = GraphBuildCfg(type=type)
+        cfg = SimCfg(
+            input_sequence_length=3,
+            collision_radius=0.01,
+            build_cfg=builder_cfg,
+        )
+        dicts.update({"cfg": cfg})
+        torch.save(dicts, model_path)
     learned_sim.load(model_path)
     learned_sim.to(device)
     learned_sim.eval()

@@ -43,8 +43,6 @@ fedge_dim = 4 + 2 * (3 * 4) + 2 * 3  # TODO
 
 
 class FIGBuilder(GraphBuilder):
-    def __init__(self, config):
-        super(FIGBuilder, self).__init__(config)
 
     def cal_edge_features(self, edge_type, index, edge_info):
         features = None

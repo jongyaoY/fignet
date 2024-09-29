@@ -24,7 +24,7 @@
 import numpy as np
 
 from fignet.data import HeteroGraph
-from fignet.graph_builders import make_builder
+from fignet.graph_builders import GraphBuildCfg, make_builder
 from fignet.scene import SceneInfoDict, SceneInfoKey
 from fignet.utils.conversion import to_tensor
 
@@ -42,22 +42,19 @@ def noised_position_sequence(
         )
 
 
-def build_graph(scn_info: SceneInfoDict, config: dict):
-    if "noise_std" in config:
-        noise_std = config.get("noise_std")
+def build_graph(
+    scn_info: SceneInfoDict, config: GraphBuildCfg, noise: bool = False
+):
+    if noise and config.noise_std is not None:
+        noise_std = config.noise_std
         scn_info[SceneInfoKey.VERT_SEQ] = noised_position_sequence(
             scn_info[SceneInfoKey.VERT_SEQ], noise_std=noise_std
         )
         scn_info[SceneInfoKey.COM_SEQ] = noised_position_sequence(
             scn_info[SceneInfoKey.COM_SEQ], noise_std=noise_std
         )
-        config.pop("noise_std")
     # TODO: add rotation preprocessing
-    build_type = config.get("type", None)
-    if build_type is None:
-        raise RuntimeError("Build type must be specify to build graph")
-
-    graph_builder = make_builder(build_type, config=config)
+    graph_builder = make_builder(build_type=config.type)
 
     build_results = graph_builder.build(scn_info)
 

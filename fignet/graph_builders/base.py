@@ -33,15 +33,6 @@ def register_builder(builder):
         ] = builder
 
 
-def make_builder(build_type, *args, **kwargs):
-    if build_type not in REGISTERED_BUILDERS and build_type:
-        raise Exception(
-            f"Unknown build type '{build_type}', \
-            available types are {list(REGISTERED_BUILDERS.keys())}"
-        )
-    return REGISTERED_BUILDERS[build_type](*args, **kwargs)
-
-
 class BuilderMeta(type):
 
     def __new__(meta, name, bases, class_dict):
@@ -72,3 +63,12 @@ class GraphBuilder(metaclass=BuilderMeta):
 
     def cal_node_attr(self, scn_info: SceneInfoDict):
         raise NotImplementedError
+
+
+def make_builder(build_type, *args, **kwargs) -> GraphBuilder:
+    if build_type not in REGISTERED_BUILDERS and build_type:
+        raise Exception(
+            f"Unknown build type '{build_type}', \
+            available types are {list(REGISTERED_BUILDERS.keys())}"
+        )
+    return REGISTERED_BUILDERS[build_type](*args, **kwargs)

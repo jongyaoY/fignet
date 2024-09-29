@@ -34,10 +34,9 @@ from torch_geometric.transforms import ToDevice
 from torchvision import transforms as T
 
 from fignet.data_loader import MujocoDataset, collate_fn
-from fignet.graph_builders import FIGNodeType
+from fignet.graph_builders import FIGNodeType, GraphBuildCfg
 from fignet.logger import Logger
-from fignet.scene import Scene
-from fignet.simulator import LearnedSimulator
+from fignet.simulator import LearnedSimulator, SimCfg
 from fignet.transform import ToHeteroGraph
 from fignet.types import KinematicType
 from fignet.utils.conversion import to_numpy
@@ -59,32 +58,41 @@ class Trainer:
     ):
         self._device = device
         self._sim = sim
-        if config.get("data_config"):
-            self._input_seq_length = config["data_config"].get(
-                "input_seq_length", 3
-            )
-        else:
-            self._input_seq_length = 3
+        sim_cfg = config.pop("simulator")
+        # if config.get("data_config"):
+        #     self._input_seq_length = config["data_config"].get(
+        #         "input_seq_length", 3
+        #     )
+        # else:
+        #     self._input_seq_length = 3
         data_path = config["data_path"]
         test_data_path = config["test_data_path"]
         batch_size = config.get("batch_size", 1)
         self._datasets = {}
         self._dataloaders = {}
 
-        transform = T.Compose([ToHeteroGraph(config.get("graph_builder"))])
-        self._builder_config = config.get("graph_builder")
+        build_cfg = GraphBuildCfg(
+            type=sim_cfg["graph_builder"]["type"],
+            noise_std=sim_cfg["graph_builder"]["noise_std"],
+        )
+        self._sim_cfg = SimCfg(
+            input_sequence_length=sim_cfg["input_seq_length"],
+            collision_radius=sim_cfg["collision_radius"],
+            build_cfg=build_cfg,
+        )
+        transform = T.Compose([ToHeteroGraph(build_cfg)])
         self._datasets["train"] = MujocoDataset(
-            data_path,
-            self._input_seq_length,
+            path=data_path,
+            input_sequence_length=self._sim_cfg.input_sequence_length,
+            collision_radius=self._sim_cfg.collision_radius,
             mode="sample",
             transform=transform,
-            config=config.get("data_config"),
         )
         self._datasets["val"] = MujocoDataset(
-            test_data_path,
-            config["rollout_steps"],
+            path=test_data_path,
+            input_sequence_length=config["rollout_steps"],
+            collision_radius=self._sim_cfg.collision_radius,
             mode="trajectory",
-            config=config.get("data_config"),
         )
 
         self._dataloaders["train"] = DataLoader(
@@ -134,6 +142,13 @@ class Trainer:
                 self._sim.load(
                     os.path.join(os.getcwd(), config.get("model_file"))
                 )
+                # compare self._sim_cfg and loaded sim.cfg
+                if self._sim_cfg != self._sim.cfg:
+                    self._logger.print(
+                        "Override simulator config with the loaded model",
+                        level="warn",
+                    )
+                    self._sim_cfg = self._sim.cfg
                 self._warm_up = False
                 self._logger.print(f"Loaded model {config['model_file']}")
                 # Load train state
@@ -165,7 +180,7 @@ class Trainer:
     def init_simulator(self):
         if not self._sim.initialized:
             sample = next(iter(self._dataloaders["train"]))
-            self._sim.init(sample)
+            self._sim.init(sample, self._sim_cfg)
         self._optimizer = torch.optim.Adam(
             self._sim.parameters(), lr=self._lr_init
         )
@@ -343,7 +358,7 @@ class Trainer:
         """
         if step % self._eval_step == 0:
             self._logger.print(f"Validate after {step} steps")
-            input_seq_length = self._input_seq_length
+            input_seq_length = self._sim_cfg.input_sequence_length
             self._sim.eval()
             rollout_t_errors = []
             rollout_r_errors = []
@@ -373,12 +388,9 @@ class Trainer:
                         sim=self._sim,
                         init_obj_poses=init_poses,
                         obj_ids=obj_ids,
-                        scene=Scene(
-                            scn_desc=scn_desc, collision_radius=0.01  # TODO
-                        ),
+                        scn_desc=scn_desc,
                         device=self._device,
                         nsteps=self._rollout_steps,
-                        builder_config=self._builder_config,
                     )
                 except Exception:
                     e = traceback.format_exc()

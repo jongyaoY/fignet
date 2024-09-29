@@ -20,18 +20,17 @@ save_video: true
 # Dataset
 data_path: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500"
 test_data_path: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500.npz"
-data_config:
-  noise_std: 3.0e-5
-  connectivity_radius: 0.01
+simulator:
+  collision_radius: 0.01
   input_seq_length: 3
-graph_builder:
-  type: 'fig'
-  noise_std: 3.0e-5
+  graph_builder:
+    type: 'fig_plus'
+    noise_std: 3.0e-5
 # Logging
 logging_folder: "log_test"
 log_level: "info"
 # continue_log_from: "2024-09-23-15:48"
-# model_file: "log_test/2024-09-27-12:45/models/weights_itr_0.ckpt"
+# model_file: "log_test/2024-09-29-17:22/models/weights_itr_0.ckpt"
 # train_state_file: "log_test/2024-09-23-15:48/models/train_state_itr_100.ckpt"
 # Simulator params
 leave_out_mm: True

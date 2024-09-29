@@ -22,6 +22,7 @@
 
 
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Dict, Union
 
 import torch
@@ -29,8 +30,16 @@ import torch.nn as nn
 from torch_geometric.typing import NodeOrEdgeType
 
 from fignet.data import HeteroGraph
+from fignet.graph_builders import GraphBuildCfg
 from fignet.modules.message_passing import EncodeProcessDecode
 from fignet.normalization import Normalizer
+
+
+@dataclass
+class SimCfg:
+    input_sequence_length: int
+    collision_radius: float
+    build_cfg: GraphBuildCfg
 
 
 class LearnedSimulator(nn.Module):
@@ -71,14 +80,20 @@ class LearnedSimulator(nn.Module):
             "message_passing_steps": message_passing_steps,
         }
         self._init_info: Dict[str, Dict[NodeOrEdgeType, int]] = None
+        self._cfg: SimCfg = None
 
     @property
-    def initialized(self):
+    def initialized(self) -> bool:
         return self._is_initialized
+
+    @property
+    def cfg(self) -> SimCfg:
+        return self._cfg
 
     def init(
         self,
         init_info: Union[HeteroGraph, Dict[str, Dict[NodeOrEdgeType, int]]],
+        cfg: SimCfg,
     ):
         """Lazy initializer"""
         if isinstance(init_info, HeteroGraph):
@@ -125,6 +140,8 @@ class LearnedSimulator(nn.Module):
             output_dim_dict=output_dim_dict,
             **self._gnn_params,
         )
+
+        self._cfg = cfg
         self._is_initialized = True
 
     def denormalize_accelerations(
@@ -205,11 +222,11 @@ class LearnedSimulator(nn.Module):
         Args:
             path: Model path
         """
-        # TODO
         model = self.state_dict()
         _output_normalizer = self._output_normalizer.get_variable()
 
         save_data = {
+            "cfg": self.cfg,
             "model": model,
             "_output_normalizer": _output_normalizer,
             "_gnn_params": self._gnn_params,
@@ -246,7 +263,7 @@ class LearnedSimulator(nn.Module):
         self._gnn_params = dicts.pop("_gnn_params")  # override gnn params
 
         if not self.initialized:
-            self.init(dicts.pop("_init_info"))
+            self.init(dicts.pop("_init_info"), dicts.pop("cfg"))
 
         self.load_state_dict(model)
         # load normalizers

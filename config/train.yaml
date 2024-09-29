@@ -20,13 +20,13 @@ save_video: true
 # Dataset
 data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_100K"
 test_data_path: "datasets/rigidFall_epLen_100_inter_10_totalSteps_10K.npz"
-data_config:
-  noise_std: 3.0e-5
-  connectivity_radius: 0.01
+
+simulator:
+  collision_radius: 0.01
   input_seq_length: 3
-graph_builder:
-  type: 'fig'
-  noise_std: 3.0e-5
+  graph_builder:
+    type: 'fig'
+    noise_std: 3.0e-5
 # Logging
 logging_folder: "log"
 log_level: "info"

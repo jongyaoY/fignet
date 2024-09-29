@@ -50,7 +50,7 @@ class MujocoDataset(torch.utils.data.Dataset):
         path: str,
         input_sequence_length: int,
         mode: str,
-        config: dict = None,
+        collision_radius: float,
         transform=None,
     ):
         # If raw data is given, need to calculate graph connectivity on the fly
@@ -95,10 +95,7 @@ class MujocoDataset(torch.utils.data.Dataset):
 
         self._transform = transform
         self._mode = mode
-        if config is not None:
-            self._config = config
-        else:
-            self._config = {}
+        self._collision_radius = collision_radius
 
     def __len__(self):
         return self._length
@@ -153,12 +150,8 @@ class MujocoDataset(torch.utils.data.Dataset):
 
             scn_desc = dict(self._data[trajectory_idx]["meta_data"].item())
 
-            connectivity_radius = self._config.get("connectivity_radius")
-            if connectivity_radius is None:
-                connectivity_radius = 0.01  # TODO
-
             scn = Scene(
-                scn_desc=scn_desc, collision_radius=connectivity_radius
+                scn_desc=scn_desc, collision_radius=self._collision_radius
             )
             scn.synchronize_states(
                 obj_poses=poses,

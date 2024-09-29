@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 from fignet.data import HeteroGraph
+from fignet.graph_builders import GraphBuildCfg
 from fignet.scene import SceneInfoDict
 from fignet.utils.conversion import dict_to_tensor
 from fignet.utils.scene import build_graph
@@ -28,12 +29,12 @@ from fignet.utils.scene import build_graph
 
 class ToHeteroGraph(object):
 
-    def __init__(self, config=None):
+    def __init__(self, config: GraphBuildCfg):
         self.config = config
 
     def __call__(self, scn_info: SceneInfoDict) -> HeteroGraph:
 
-        return build_graph(scn_info, self.config)
+        return build_graph(scn_info, self.config, True)
 
 
 class ToTensor(object):

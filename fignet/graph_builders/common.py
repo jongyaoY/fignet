@@ -21,7 +21,7 @@
 # SOFTWARE.
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 from torch_geometric.typing import EdgeType, NodeType
@@ -58,6 +58,12 @@ class GraphBuildResult:
     node_attr_dict: Dict[NodeType, np.ndarray]
     edge_index_dict: Dict[EdgeType, np.ndarray]
     edge_attr_dict: Dict[EdgeType, np.ndarray]
+
+
+@dataclass
+class GraphBuildCfg:
+    type: str
+    noise_std: Optional[float] = None
 
 
 def cal_inner_connectivity(scn_info, direction: str):
