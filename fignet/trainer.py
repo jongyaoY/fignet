@@ -59,12 +59,7 @@ class Trainer:
         self._device = device
         self._sim = sim
         sim_cfg = config.pop("simulator")
-        # if config.get("data_config"):
-        #     self._input_seq_length = config["data_config"].get(
-        #         "input_seq_length", 3
-        #     )
-        # else:
-        #     self._input_seq_length = 3
+
         data_path = config["data_path"]
         test_data_path = config["test_data_path"]
         batch_size = config.get("batch_size", 1)
@@ -73,7 +68,7 @@ class Trainer:
 
         build_cfg = GraphBuildCfg(
             type=sim_cfg["graph_builder"]["type"],
-            noise_std=sim_cfg["graph_builder"]["noise_std"],
+            noise_std=sim_cfg["graph_builder"].get("noise_std"),
         )
         self._sim_cfg = SimCfg(
             input_sequence_length=sim_cfg["input_seq_length"],

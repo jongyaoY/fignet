@@ -116,8 +116,12 @@ class EdgeConv(MessagePassing):
             )
 
     def message(
-        self, x_i, x_j, edge_attr, hyper_edge: bool
-    ):  # receiver  # sender
+        self,
+        x_i: torch.Tensor,  # receiver
+        x_j: torch.Tensor,  # sender
+        edge_attr: torch.Tensor,
+        hyper_edge: bool,
+    ):
         if hyper_edge:
             num_edge = edge_attr.shape[0]
             assert num_edge != 0
