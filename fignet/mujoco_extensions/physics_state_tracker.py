@@ -56,6 +56,7 @@ class PhysicsStateTracker:
         self.excluded_bodies = (
             excluded_bodies if excluded_bodies is not None else []
         )
+        self.sim.forward()
         self.body_meshes = parse_meshes_initial(self.sim, self.excluded_bodies)
         self.properties = parse_physical_properties(sim)
         self.col_obj_map = {}
