@@ -29,7 +29,9 @@ import numpy as np
 import torch
 import torch.utils
 
-from fignet.scene import Scene
+from fignet.mujoco_extensions.mj_classes import MjSimLearned
+from fignet.mujoco_extensions.mj_scene import get_scene_info
+from fignet.mujoco_extensions.physics_state_tracker import PhysicsStateTracker
 
 
 def collate_fn(batch: list):
@@ -143,21 +145,51 @@ class MujocoDataset(torch.utils.data.Dataset):
             ]  # (seq_len, n_obj, 4) input sequence
             target_posisitons = self._data[trajectory_idx]["pos"][time_idx]
             target_quats = self._data[trajectory_idx]["quat"][time_idx]
-            poses = np.concatenate([positions, quats], axis=-1)
-            target_poses = np.concatenate(
-                [target_posisitons, target_quats], axis=-1
-            )
+            # poses = np.concatenate([positions, quats], axis=-1)
+            # target_poses = np.concatenate(
+            #     [target_posisitons, target_quats], axis=-1
+            # )
 
-            scn_desc = dict(self._data[trajectory_idx]["meta_data"].item())
-
-            scn = Scene(
-                scn_desc=scn_desc, collision_radius=self._collision_radius
+            sim = MjSimLearned.from_xml_string(
+                str(self._data[trajectory_idx]["mujoco_xml"])
             )
-            scn.synchronize_states(
-                obj_poses=poses,
+            sim.set_state(
+                positions=positions[-1, ...],
+                quaternions=quats[-1, ...],
                 obj_ids=obj_ids,
             )
-            scn_info = scn.to_dict(target_poses=target_poses, obj_ids=obj_ids)
+
+            tracker = PhysicsStateTracker(
+                sim=sim, security_margin=self._collision_radius
+            )
+
+            collisions = tracker.detect_collisions(bidirectional=True)
+            # collison_det.visualize()
+
+            scn_info = get_scene_info(
+                sim=sim,
+                body_meshes=tracker.body_meshes,
+                properties=tracker.properties,
+                obj_positions=np.vstack(
+                    [positions, target_posisitons[np.newaxis, :]]
+                ),
+                obj_quaternions=np.vstack(
+                    [quats, target_quats[np.newaxis, :]]
+                ),
+                obj_ids=obj_ids,
+                collisions=collisions,
+                contains_targets=True,
+            )
+            # scn_desc = dict(self._data[trajectory_idx]["meta_data"].item())
+
+            # scn = Scene(
+            #     scn_desc=scn_desc, collision_radius=self._collision_radius
+            # )
+            # scn.synchronize_states(
+            #     obj_poses=poses,
+            #     obj_ids=obj_ids,
+            # )
+            # scn_info_ = scn.to_dict(target_poses=target_poses, obj_ids=obj_ids)
         else:
             if os.path.exists(self._file_list[idx]):
                 scn_info = self._load_scn_info(self._file_list[idx])
@@ -168,6 +200,17 @@ class MujocoDataset(torch.utils.data.Dataset):
             out = self._transform(scn_info)
         else:
             out = scn_info
+
+        # from fignet.scene import SceneInfoKey
+        # assert np.allclose(
+        #     scn_info_[SceneInfoKey.VERT_SEQ][:, 8:, :],
+        #     scn_info[SceneInfoKey.VERT_SEQ][:, 8:, :],
+        #     atol=1e-8
+        # )
+        # assert np.allclose(
+        #     scn_info_[SceneInfoKey.VERT_TARGET], scn_info[SceneInfoKey.VERT_TARGET],
+        #     atol=1e-4
+        # )
         return out
 
     def _get_trajectory(self, idx):
