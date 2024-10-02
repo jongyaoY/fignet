@@ -42,14 +42,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--config_file", type=str, required=True)
 parser.add_argument("--data_path", type=str, required=True)
 parser.add_argument("--num_workers", type=int, required=True, default=1)
-
+parser.add_argument("--out_path", type=str, required=False)
 args = parser.parse_args()
 
 data_path = args.data_path
 config_file = args.config_file
 num_workers = min(args.num_workers, os.cpu_count())
 # batch_size = min(2 * num_workers, 64)
-output_path = os.path.join(Path(data_path).parent, Path(data_path).stem)
+if args.out_path is None:
+    output_path = os.path.join(Path(data_path).parent, Path(data_path).stem)
+else:
+    output_path = args.out_path
 device = torch.device("cpu")
 
 logger = logging.getLogger(__name__)
