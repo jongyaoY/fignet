@@ -194,7 +194,7 @@ class PhysicsStateTracker:
                     (face_idx_2, face_idx_1)
                 )
 
-        return collisions
+        return dict(collisions)
 
     def visualize(self):
         """
