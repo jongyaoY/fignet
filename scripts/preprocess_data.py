@@ -81,12 +81,14 @@ if __name__ == "__main__":
         f"Parsing {data_path}. Preprocessed graphs will be stored in {output_path}"
     )
     try:
+        sim_cfg = config.pop("simulator")
+
         dataset = MujocoDataset(
             path=data_path,
             mode="sample",
-            input_sequence_length=3,
+            input_sequence_length=sim_cfg["input_seq_length"],
             # transform=T.Compose([ToTensor(device)]),
-            config=config.get("data_config"),
+            collision_radius=sim_cfg["collision_radius"],
         )
         data_loader = torch.utils.data.DataLoader(
             dataset,
