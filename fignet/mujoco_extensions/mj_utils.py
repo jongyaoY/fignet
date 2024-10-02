@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from collections import deque
 from typing import Dict, List, Optional, Tuple, Union
 
 import mujoco as mj
@@ -71,7 +70,9 @@ def set_mjdata(
         ]  # xyzw -> wxyz
 
 
-def get_mjdata(sim) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+def get_mjdata(
+    sim: MjSim,
+) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
     """
     Get the positions and orientations of all objects in mujoco.MjData.
 
@@ -110,16 +111,6 @@ def get_body_transform(sim: MjSim, body_id: Union[int, str]) -> np.ndarray:
     # transform_matrix = trimesh.transformations.quaternion_matrix(body_quat)
     transform_matrix[:3, 3] = body_pos
     return transform_matrix
-
-
-def initialize_com_history(
-    sim, body_meshes: Dict[str, Dict], time_window: int
-) -> Dict[int, deque]:
-    com_history = {}
-    for body_name in body_meshes.keys():
-        body_id = sim.model.body_name2id(body_name)
-        com_history[body_id] = deque(maxlen=time_window)
-    return com_history
 
 
 def create_mesh_from_geom(
@@ -232,6 +223,7 @@ def parse_meshes_initial(
                 "meshes": [],
                 "transforms": [],
                 "geom_ids": [],
+                "vert_offsets": [],
             }
 
         try:
@@ -245,5 +237,56 @@ def parse_meshes_initial(
         body_meshes[body_name]["meshes"].append(mesh)
         body_meshes[body_name]["transforms"].append(geom_transform)
         body_meshes[body_name]["geom_ids"].append(geom_id)
-
+        if len(body_meshes[body_name]["vert_offsets"]) == 0:
+            vert_offset = 0
+        else:
+            raise NotImplementedError
+        body_meshes[body_name]["vert_offsets"].append(vert_offset)
     return body_meshes
+
+
+def parse_physical_properties(sim: MjSim) -> Dict[str, Dict]:
+    """
+    Parse and store static physical properties like friction and mass for each body.
+
+    Parameters:
+    sim : mj.MjSim
+        The MuJoCo simulation instance.
+
+    Returns:
+    Dict[str, Dict]: Dictionary mapping body names to their physical properties.
+    """
+    properties = {}
+    for body_id in range(sim.model.nbody):
+        body_name = sim.model.body_id2name(body_id)
+        # Get the starting index and number of geometries for the body
+        start_geom_id = sim.model.body_geomadr[body_id]
+        geom_count = sim.model.body_geomnum[body_id]
+
+        # Slice the geom_friction array to get the friction values for all
+        # geoms of the body, now assume one body has only one geom!
+        friction = []
+        restitution = []
+        for geom_index in range(start_geom_id, start_geom_id + geom_count):
+            if (
+                sim.model.geom_contype[geom_index] != 0
+                and sim.model.geom_conaffinity[geom_index] != 0
+            ):
+                friction.append(sim.model.geom_friction[geom_index])
+                restitution.append(sim.model.geom_solref[geom_index][1])
+        # Ensure the slice is flattened if there are multiple geometries
+        if len(friction) > 1:
+            raise NotImplementedError
+        friction = np.array(friction).squeeze(0)
+        restitution = np.array(restitution).squeeze(0)
+        mass = sim.model.body_mass[body_id]
+        inertia = sim.model.body_inertia[body_id]
+        is_dynamic = sim.model.body_dofnum[body_id] > 0
+        properties[body_name] = {
+            "friction": friction,
+            "restitution": restitution,
+            "mass": mass,
+            "inertia": inertia,
+            "is_dynamic": is_dynamic,
+        }
+    return properties

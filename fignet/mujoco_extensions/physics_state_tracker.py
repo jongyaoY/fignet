@@ -31,10 +31,11 @@ from fignet.mujoco_extensions.mj_classes import MjSimLearned
 from fignet.mujoco_extensions.mj_utils import (
     get_body_transform,
     parse_meshes_initial,
+    parse_physical_properties,
 )
 
 
-class CollisionDetector:
+class PhysicsStateTracker:
     def __init__(
         self,
         sim: MjSimLearned,
@@ -48,7 +49,7 @@ class CollisionDetector:
         sim (MjSimLearned): The MuJoCo simulation instance.
         security_margin (float): Security margin for collision detection.
         excluded_bodies (List[str], optional): List of bodies to exclude from
-        detection.
+        tracking.
         """
         self.sim = sim
         self.security_margin = security_margin
@@ -56,6 +57,7 @@ class CollisionDetector:
             excluded_bodies if excluded_bodies is not None else []
         )
         self.body_meshes = parse_meshes_initial(self.sim, self.excluded_bodies)
+        self.properties = parse_physical_properties(sim)
         self.col_obj_map = {}
         self.mesh_map = {}
         self._initialize_collision_objects()
@@ -114,6 +116,10 @@ class CollisionDetector:
         else:
             raise ValueError(f"{body_name} not exists")
 
+    # TODO
+    def _get_mesh_local_offset(self, body_name, mesh_idx):
+        pass
+
     def detect_collisions(
         self, bidirectional: bool
     ) -> Dict[Tuple[str, str], Dict]:
@@ -157,7 +163,8 @@ class CollisionDetector:
             vert_idx_1 = mesh_1.faces[face_idx_1]
             vert_idx_2 = mesh_2.faces[face_idx_2]
             contact_info = collisions[(body_name_1, body_name_2)]
-
+            assert np.all(vert_idx_1 < mesh_1.vertices.shape[0])
+            assert np.all(vert_idx_2 < mesh_2.vertices.shape[0])
             contact_info["contact_points"].append((point_1, point_2)),
             contact_info["contact_normals"].append(
                 (
