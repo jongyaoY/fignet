@@ -167,23 +167,30 @@ class FIGBuilder(GraphBuilder):
                 edge_info["contact_points"] = []
                 edge_info["contact_normals"] = []
                 for (name1, name2), contact_info in contact_paris.items():
-                    s_idx, r_idx = contact_info["vert_ids_local"]
+                    num_contacts = len(contact_info["contact_points"])
                     m_offset_s = scn_info[SceneInfoKey.VERT_OFFSETS_DICT].get(
                         name1
                     )
                     m_offset_r = scn_info[SceneInfoKey.VERT_OFFSETS_DICT].get(
                         name2
                     )
-                    s_idx += m_offset_s
-                    r_idx += m_offset_r
-                    senders.append(s_idx)
-                    receivers.append(r_idx)
-                    edge_info["contact_points"].append(
-                        contact_info["contact_points"]
-                    )
-                    edge_info["contact_normals"].append(
-                        contact_info["contact_normals"]
-                    )
+                    for contact_i in range(num_contacts):
+                        s_idx, r_idx = contact_info["vert_ids_local"][
+                            contact_i
+                        ]
+
+                        s_idx = m_offset_s + s_idx
+                        r_idx = m_offset_r + r_idx
+                        # if np.any(s_idx > 1000) or np.any(r_idx > 1000):
+                        #     print('wtf')
+                        senders.append(s_idx)
+                        receivers.append(r_idx)
+                        edge_info["contact_points"].append(
+                            contact_info["contact_points"][contact_i]
+                        )
+                        edge_info["contact_normals"].append(
+                            contact_info["contact_normals"][contact_i]
+                        )
                 edge_info["verts_pos"] = scn_info[SceneInfoKey.VERT_SEQ][
                     -1, ...
                 ]

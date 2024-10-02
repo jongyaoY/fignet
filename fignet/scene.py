@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 import enum
+from collections import defaultdict
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -466,7 +467,7 @@ class Scene:
         pairs = self._collision_manager.get_collision_pairs(
             contacts, bidirectional=True
         )
-        out_pairs = {}
+        out_pairs = defaultdict(lambda: defaultdict(list))
         for (name1, name2, face_id1, face_id2), (
             point1,
             point2,
@@ -475,14 +476,15 @@ class Scene:
             mesh2 = self._collision_manager.get_object(name2)
             id_s = mesh1.faces[face_id1]
             id_r = mesh2.faces[face_id2]
-            out_pairs[(name1, name2)] = {
-                "vert_ids_local": (id_s, id_r),
-                "contact_points": (point1, point2),
-                "contact_normals": (
+            contact_info = out_pairs[(name1, name2)]
+            contact_info["vert_ids_local"].append((id_s, id_r))
+            contact_info["contact_points"].append((point1, point2))
+            contact_info["contact_normals"].append(
+                (
                     mesh1.face_normals[face_id1],
                     mesh2.face_normals[face_id2],
-                ),
-            }
+                )
+            )
         return out_pairs
 
     def _vert_index(self, name: str):

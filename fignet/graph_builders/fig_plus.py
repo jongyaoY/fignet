@@ -111,24 +111,27 @@ class FIG_PlusBuilder(GraphBuilder):
                 edge_info["contact_points"] = []
                 edge_info["contact_normals"] = []
                 for (name1, name2), contact_info in contact_paris.items():
-                    s_idx = contact_info["vert_ids_local"][0]
+                    num_contacts = len(contact_info["contact_points"])
+
                     m_offset = scn_info[SceneInfoKey.VERT_OFFSETS_DICT].get(
                         name1
                     )
                     o_offset = scn_info[SceneInfoKey.OBJ_OFFSETS_DICT].get(
                         name2
                     )
-                    s_idx += m_offset
-                    r_idx = o_offset
-                    senders.append(s_idx)
-                    receivers.append(np.repeat(r_idx, len(s_idx)))
-                    for _ in range(len(s_idx)):
-                        edge_info["contact_points"].append(
-                            contact_info["contact_points"]
-                        )
-                        edge_info["contact_normals"].append(
-                            contact_info["contact_normals"]
-                        )
+                    for contact_i in range(num_contacts):
+                        s_idx = contact_info["vert_ids_local"][contact_i][0]
+                        s_idx = m_offset + s_idx
+                        r_idx = o_offset
+                        senders.append(s_idx)
+                        receivers.append(np.repeat(r_idx, len(s_idx)))
+                        for _ in range(len(s_idx)):
+                            edge_info["contact_points"].append(
+                                contact_info["contact_points"][contact_i]
+                            )
+                            edge_info["contact_normals"].append(
+                                contact_info["contact_normals"][contact_i]
+                            )
                 edge_info["verts_pos"] = scn_info[SceneInfoKey.VERT_SEQ][
                     -1, ...
                 ]
