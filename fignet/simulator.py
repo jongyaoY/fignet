@@ -90,6 +90,10 @@ class LearnedSimulator(nn.Module):
     def cfg(self) -> SimCfg:
         return self._cfg
 
+    @property
+    def device(self):
+        return self._device
+
     def init(
         self,
         init_info: Union[HeteroGraph, Dict[str, Dict[NodeOrEdgeType, int]]],

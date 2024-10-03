@@ -26,19 +26,21 @@ from typing import Dict, List, Optional, Tuple
 import hppfcl
 import numpy as np
 import trimesh
+from robosuite.utils.binding_utils import MjSim
 
-from fignet.mujoco_extensions.mj_classes import MjSimLearned
+# from fignet.mujoco_extensions.mj_classes import MjSimLearned
 from fignet.mujoco_extensions.mj_utils import (
     get_body_transform,
     parse_meshes_initial,
     parse_physical_properties,
 )
+from fignet.utils.geometric import match_meshes
 
 
 class PhysicsStateTracker:
     def __init__(
         self,
-        sim: MjSimLearned,
+        sim: MjSim,
         security_margin: float = 0.0,
         excluded_bodies: Optional[List[str]] = None,
     ):
@@ -196,6 +198,41 @@ class PhysicsStateTracker:
                 )
 
         return dict(collisions)
+
+    def get_transform_updates(
+        self,
+        vert_offsets_dict: Dict[str, int],
+        num_verts_dict: Dict[str, int],
+        device,
+        target_verts: np.ndarray,
+        source_verts: Optional[np.ndarray] = None,
+    ):
+        out_transform = {}
+        for fcl_mesh_id, (body_name, mesh_idx) in self.mesh_map.items():
+            if not self.properties[body_name]["is_dynamic"]:
+                continue
+            target_mesh = self._get_body_mesh(body_name, mesh_idx).copy()
+            source_mesh = self._get_body_mesh(body_name, mesh_idx).copy()
+            start_idx = vert_offsets_dict[body_name]
+            end_idx = start_idx + num_verts_dict[body_name]
+            if source_verts is None:
+                fcl_tf = self.col_obj_map[fcl_mesh_id].getTransform()
+                prev_transform = np.eye(4)
+                prev_transform[:3, :3] = fcl_tf.getRotation()
+                prev_transform[:3, 3] = fcl_tf.getTranslation()
+                source_mesh.apply_transform(prev_transform)
+            else:
+                source_mesh.vertices = source_verts[start_idx:end_idx, :]
+            target_mesh.vertices = target_verts[start_idx:end_idx, :]
+            try:
+                rel_transform = match_meshes(
+                    trg_mesh=target_mesh, src_mesh=source_mesh, device=device
+                )
+            except Exception:
+                rel_transform = np.eye(4)
+            out_transform[body_name] = rel_transform
+
+        return out_transform
 
     def visualize(self):
         """

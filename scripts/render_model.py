@@ -25,10 +25,13 @@ import os
 
 import numpy as np
 import torch
+import tqdm
 from PIL import Image
+from robosuite.utils.binding_utils import MjRenderContext
 
 import fignet
 import rigid_fall
+from fignet.mujoco_extensions.mj_sim_learned import MjSimLearned
 
 parser = argparse.ArgumentParser()
 
@@ -121,10 +124,64 @@ def sample_ground_truth():
     return gt_data
 
 
+def render_gt(mujoco_xml, gt_traj, input_seq_length, obj_id):
+    screen_gt = fignet.visualize_trajectory(
+        mujoco_xml,
+        gt_traj[input_seq_length:, ...],
+        obj_id,
+        height=height,
+        width=width,
+        off_screen=off_screen,
+    )
+    return screen_gt
+
+
+def render_mjsim_learned(
+    gnn_model: fignet.LearnedSimulator, ep_i, off_sreen=True
+):
+    screens = []
+    if load_from != "":
+        data = list(np.load(load_from, allow_pickle=True).values())[0]
+        gt_data = data[ep_i]
+    else:
+        gt_data = sample_ground_truth()
+
+    input_sequence_length = gnn_model.cfg.input_sequence_length
+    mujoco_xml = str(gt_data["mujoco_xml"])
+    obj_ids = dict(gt_data["obj_id"].item())
+    positions = gt_data["pos"]
+    quaternions = gt_data["quat"]
+    sim = MjSimLearned.from_xml_string(mujoco_xml)
+    render_context = MjRenderContext(sim)
+    sim.add_render_context(render_context)
+    sim.set_gnn_backend(gnn_model)
+    sim.set_state(
+        positions=positions[:input_sequence_length, ...],
+        quaternions=quaternions[:input_sequence_length, ...],
+        obj_ids=obj_ids,
+    )
+    for _ in tqdm.tqdm(range(ep_length - input_sequence_length)):
+        sim.step(backend="gnn")
+        im = sim.render(
+            height=height,
+            width=width,
+        )
+        im = np.flip(im, axis=0)
+        screens.append(im)
+        # TODO: Record traj
+    screens_gt = render_gt(
+        gt_traj=np.concatenate([gt_data["pos"], gt_data["quat"]], axis=2),
+        mujoco_xml=mujoco_xml,
+        input_seq_length=input_sequence_length,
+        obj_id=obj_ids,
+    )
+    return screens_gt, np.array(screens)
+
+
 def render_simulator(
     learned_sim: fignet.LearnedSimulator, ep_i, off_screen=True
 ):
-
+    print(f"rendering {ep_i}-th episode")
     if load_from != "":
         data = list(np.load(load_from, allow_pickle=True).values())[0]
         gt_data = data[ep_i]
@@ -200,7 +257,8 @@ if __name__ == "__main__":
     learned_sim.to(device)
     learned_sim.eval()
     for ep_i in range(num_ep):
-        screens = render_simulator(learned_sim, ep_i, off_screen)
+        screens = render_mjsim_learned(learned_sim, ep_i, off_screen)
+        # screens = render_simulator(learned_sim, ep_i, off_screen)
         if off_screen:
             if split_video:
                 filename_gt = os.path.join(

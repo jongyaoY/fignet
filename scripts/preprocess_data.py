@@ -34,8 +34,8 @@ import torch
 import tqdm
 import yaml
 
-from fignet.mujoco_extensions.mj_classes import MjSimLearned
 from fignet.mujoco_extensions.mj_scene import get_scene_info
+from fignet.mujoco_extensions.mj_sim_learned import MjSimLearned
 from fignet.mujoco_extensions.physics_state_tracker import PhysicsStateTracker
 
 parser = argparse.ArgumentParser()

@@ -58,6 +58,7 @@ def set_mjdata(
 
     for obj_name, obj_id in obj_ids.items():
         if obj_name not in sim.model.body_names:
+            # ! TODO: adhoc solution
             for name in sim.model.body_names:
                 if name.startswith(obj_name):
                     obj_name = name
@@ -68,6 +69,8 @@ def set_mjdata(
         sim.data.qpos[q_id * 7 + 3 : q_id * 7 + 7] = quaternions[obj_id][
             [3, 0, 1, 2]
         ]  # xyzw -> wxyz
+
+    sim.forward()
 
 
 def get_mjdata(
