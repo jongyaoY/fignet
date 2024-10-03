@@ -21,57 +21,42 @@
 # SOFTWARE.
 
 import time
-from typing import Dict, Union
+from typing import Dict
 
 import numpy as np
 import torch
 import tqdm
 from robosuite.utils import OpenCVRenderer
 from robosuite.utils.binding_utils import MjRenderContext, MjSim
-from torch_geometric.transforms import ToDevice
 
-from fignet.scene import Scene
+from fignet.mujoco_extensions.mj_sim_learned import MjSimLearned
 from fignet.simulator import LearnedSimulator
 from fignet.utils.conversion import to_numpy
-from fignet.utils.geometric import pose_to_transform, transform_to_pose
-from fignet.utils.scene import build_graph
 
 
 def rollout(
-    sim: LearnedSimulator,
+    gnn_model: LearnedSimulator,
     init_obj_poses: np.ndarray,
     obj_ids: Dict[str, int],
-    scn_desc: dict,
-    device: Union[torch.device, str],
+    mujoco_xml: dict,
     nsteps: int,
 ):
     if isinstance(init_obj_poses, torch.Tensor):
         init_obj_poses = to_numpy(init_obj_poses)
-    scene = Scene(scn_desc=scn_desc, collision_radius=sim.cfg.collision_radius)
-    scene.synchronize_states(init_obj_poses, obj_ids)
-    obj_poses = init_obj_poses[-1, ...]
-    trajectory = np.vstack([obj_poses[None, :]])
+    trajectory = np.vstack([init_obj_poses[-1, ...][None, :]])
+    sim = MjSimLearned.from_xml_string(mujoco_xml)
+    sim.set_gnn_backend(gnn_model)
+    sim.set_state(
+        positions=init_obj_poses[:, :, :3],
+        quaternions=init_obj_poses[:, :, 3:],
+        obj_ids=obj_ids,
+    )
     for _ in tqdm.tqdm(
         range(nsteps - init_obj_poses.shape[0]), desc="sampling rollout"
     ):
-        graph = scene.to_dict()
-        graph = build_graph(graph, sim.cfg.build_cfg, sim.training)
-        m_pred_acc, o_pred_acc = sim.predict_accelerations(
-            ToDevice(device)(graph)
-        )
-        m_pred_acc = sim.denormalize_accelerations(m_pred_acc)
-        o_pred_acc = sim.denormalize_accelerations(o_pred_acc)
-        obj_rel_poses = scene.update(
-            m_acc=to_numpy(m_pred_acc),
-            o_acc=to_numpy(o_pred_acc),
-            obj_ids=obj_ids,
-            device=device,
-        )
-        for i in range(obj_poses.shape[0]):
-            prev_transform = pose_to_transform(obj_poses[i, :])
-            rel_transform = pose_to_transform(obj_rel_poses[i, :])
-            transform = rel_transform @ prev_transform
-            obj_poses[i, :] = transform_to_pose(transform)
+        sim.step(backend="gnn")
+        pos, quat = sim.get_body_states()
+        obj_poses = np.concatenate([pos, quat], axis=-1)
         trajectory = np.vstack([trajectory, obj_poses[None, :]])
 
     return np.asarray(trajectory)

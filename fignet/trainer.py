@@ -368,7 +368,6 @@ class Trainer:
                 # Get initial states
                 traj = data[0]
                 mujoco_xml = data[1]
-                scn_desc = data[2]
                 init_poses = traj["pose_seq"][0:input_seq_length, ...]
                 gt_poses = to_numpy(traj["pose_seq"])
                 gt_poses = np.delete(gt_poses, 0, axis=0)
@@ -380,11 +379,10 @@ class Trainer:
                 pred_traj = []
                 try:
                     pred_traj = rollout(
-                        sim=self._sim,
+                        gnn_model=self._sim,
                         init_obj_poses=init_poses,
                         obj_ids=obj_ids,
-                        scn_desc=scn_desc,
-                        device=self._device,
+                        mujoco_xml=mujoco_xml,
                         nsteps=self._rollout_steps,
                     )
                 except Exception:
