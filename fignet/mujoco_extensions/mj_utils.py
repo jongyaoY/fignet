@@ -22,11 +22,14 @@
 
 from typing import Dict, List, Optional, Tuple, Union
 
+import mujoco
 import mujoco as mj
 import numpy as np
 import trimesh
-from robosuite.utils.binding_utils import MjSim
+from robosuite.utils.binding_utils import MjModel, MjSim
 from scipy.spatial.transform import Rotation as R
+
+from fignet.mujoco_extensions.constants import JointType
 
 
 def set_mjdata(
@@ -216,6 +219,7 @@ def parse_meshes_initial(
     sim, excluded_bodies: Optional[List[str]] = None
 ) -> Dict[str, Dict]:
     body_meshes = {}
+    acc_vert_num = 0
     for geom_id in range(sim.model.ngeom):
         body_id = sim.model.geom_bodyid[geom_id]
         body_name = sim.model.body_id2name(body_id)
@@ -240,12 +244,15 @@ def parse_meshes_initial(
         body_meshes[body_name]["meshes"].append(mesh)
         body_meshes[body_name]["transforms"].append(geom_transform)
         body_meshes[body_name]["geom_ids"].append(geom_id)
-        if len(body_meshes[body_name]["vert_offsets"]) == 0:
-            vert_offset = 0
-        else:
-            raise NotImplementedError
-        body_meshes[body_name]["vert_offsets"].append(vert_offset)
-    return body_meshes
+        body_meshes[body_name]["vert_offsets"].append(acc_vert_num)
+        acc_vert_num += len(mesh.vertices)
+
+    out_body_meshes = {}
+    for body_name, body_info in body_meshes.items():
+        if len(body_info["meshes"]) > 0:
+            out_body_meshes[body_name] = body_info
+
+    return out_body_meshes
 
 
 def parse_physical_properties(sim: MjSim) -> Dict[str, Dict]:
@@ -277,11 +284,10 @@ def parse_physical_properties(sim: MjSim) -> Dict[str, Dict]:
             ):
                 friction.append(sim.model.geom_friction[geom_index])
                 restitution.append(sim.model.geom_solref[geom_index][1])
-        # Ensure the slice is flattened if there are multiple geometries
-        if len(friction) > 1:
-            raise NotImplementedError
-        friction = np.array(friction).squeeze(0)
-        restitution = np.array(restitution).squeeze(0)
+        # TODO: Take only the properties from the first geom
+        friction = friction[0]
+        restitution = restitution[0]
+
         mass = sim.model.body_mass[body_id]
         inertia = sim.model.body_inertia[body_id]
         is_dynamic = sim.model.body_dofnum[body_id] > 0
@@ -293,3 +299,33 @@ def parse_physical_properties(sim: MjSim) -> Dict[str, Dict]:
             "is_dynamic": is_dynamic,
         }
     return properties
+
+
+def parse_kinematic_chain(model: MjModel):
+    kinematic_chain = []
+    for joint_id in range(model.njnt):
+        # Get joint information
+        joint_name = model.joint_id2name(joint_id)
+        joint_type = JointType(model.jnt_type[joint_id])
+        joint_qposadr = model.jnt_qposadr[joint_id]
+        joint_dofadr = model.jnt_dofadr[joint_id]
+        body_id = model.jnt_bodyid[joint_id]
+
+        # Get body information
+        body_name = model.body_id2name(body_id)
+        parent_id = model.body_parentid[body_id]
+        parent_name = model.body_id2name(parent_id)
+
+        # Append kinematic chain information
+        kinematic_chain.append(
+            {
+                "joint_name": joint_name,
+                "joint_type": joint_type,
+                "qpos_address": joint_qposadr,
+                "dof_address": joint_dofadr,
+                "body_name": body_name,
+                "parent_name": parent_name,
+            }
+        )
+
+    return kinematic_chain
