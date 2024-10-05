@@ -83,7 +83,7 @@ def get_vertices_from_history(
     num_outliers = 0
     for body_name in body_meshes.keys():
         body_info = body_meshes[body_name]
-        # transform_matrix = np.eye(4)
+        # Get body poses
         if body_name in obj_ids:
             obj_id = obj_ids[body_name]
             pos = obj_positions[:, obj_id]
@@ -93,14 +93,17 @@ def get_vertices_from_history(
             num_outliers += 1
             poses = transform_to_pose(np.eye(4))
             poses = np.tile(poses, (history_length, 1))
+        # Get verts sequence
         for mesh, transform in zip(
             body_info["meshes"], body_info["transforms"]
         ):
+            # Get mesh absolute pose sequence
             if not np.allclose(transform, np.eye(4), atol=1e-6):
                 for t in range(poses.shape[0]):
                     poses[t] = transform_to_pose(
                         pose_to_transform(poses[t]) @ transform
                     )
+            # Calculate transformed vert sequence
             vert_seq = mesh_verts_sequence(mesh, poses)
             all_transformed_vertices.append(vert_seq)
 
