@@ -75,7 +75,7 @@ def visualize_trajectory(
     render_context = MjRenderContext(sim)
     sim.add_render_context(render_context)
     viewer = OpenCVRenderer(sim)
-    dt = 0.002  # TODO
+    dt = 0.02  # TODO
     seq_length = traj.shape[0]
     if off_screen:
         screens = []
