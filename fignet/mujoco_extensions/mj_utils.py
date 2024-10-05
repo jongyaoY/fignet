@@ -166,6 +166,17 @@ def create_mesh_from_geom(
     elif geom_type == mj.mjtGeom.mjGEOM_SPHERE:
         radius = sim.model.geom_size[geom_id][0]
         mesh = trimesh.creation.icosphere(subdivisions=3, radius=radius)
+    elif geom_type == mj.mjtGeom.mjGEOM_CAPSULE:
+        radius = sim.model.geom_size[geom_id][0]
+        height = (
+            sim.model.geom_size[geom_id][1] * 2
+        )  # MuJoCo capsule height is hemispherical
+        return trimesh.creation.capsule(radius=radius, height=height)
+    elif geom_type == mujoco.mjtGeom.mjGEOM_ELLIPSOID:
+        # Create ellipsoid by scaling an icosphere
+        mesh = trimesh.creation.icosphere(radius=1.0, subdivisions=4)
+        scale = sim.model.geom_size[geom_id] * 2  # MuJoCo uses half-extents
+        mesh.apply_scale(scale)
     elif geom_type == mj.mjtGeom.mjGEOM_CYLINDER:
         radius, height = (
             sim.model.geom_size[geom_id][0],
