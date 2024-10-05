@@ -28,13 +28,14 @@ import numpy as np
 import trimesh
 from robosuite.utils.binding_utils import MjSim
 
-# from fignet.mujoco_extensions.mj_classes import MjSimLearned
 from fignet.mujoco_extensions.mj_utils import (
     get_body_transform,
+    parse_kinematic_chain,
     parse_meshes_initial,
     parse_physical_properties,
 )
 from fignet.utils.geometric import match_meshes
+from fignet.utils.mesh import get_transformed_copy
 
 
 class PhysicsStateTracker:
@@ -48,7 +49,7 @@ class PhysicsStateTracker:
         Initialize the collision detector.
 
         Parameters:
-        sim (MjSimLearned): The MuJoCo simulation instance.
+        sim (MjSim): The MuJoCo simulation instance.
         security_margin (float): Security margin for collision detection.
         excluded_bodies (List[str], optional): List of bodies to exclude from
         tracking.
@@ -59,6 +60,7 @@ class PhysicsStateTracker:
             excluded_bodies if excluded_bodies is not None else []
         )
         self.sim.forward()
+        self.kinematic_chain = parse_kinematic_chain(sim.model)
         self.body_meshes = parse_meshes_initial(self.sim, self.excluded_bodies)
         self.properties = parse_physical_properties(sim)
         self.col_obj_map = {}
@@ -119,12 +121,27 @@ class PhysicsStateTracker:
         else:
             raise ValueError(f"{body_name} not exists")
 
+    def _get_merged_body_mesh(self, body_name) -> trimesh.Trimesh:
+        body_info = self.body_meshes[body_name]
+        mesh_list = []
+        for mesh, transform in zip(
+            body_info["meshes"], body_info["transforms"]
+        ):
+            mesh_list.append(get_transformed_copy(mesh, transform))
+        if len(mesh_list) == 0:
+            return None
+
+        return trimesh.util.concatenate(mesh_list)
+
     # TODO
     def _get_mesh_local_offset(self, body_name, mesh_idx):
         pass
 
     def detect_collisions(
-        self, bidirectional: bool
+        self,
+        bidirectional: bool,
+        exclude_pairs: List[Tuple[str, str]] = [],
+        exclude_self_collision: bool = True,
     ) -> Dict[Tuple[str, str], Dict]:
         """
         Detect collisions between bodies' meshes with a security margin.
@@ -157,6 +174,13 @@ class PhysicsStateTracker:
             idx2 = contact.o2.id()
             body_name_1, mesh_idx_1 = self.mesh_map[idx1]
             body_name_2, mesh_idx_2 = self.mesh_map[idx2]
+            if exclude_self_collision and (body_name_1 == body_name_2):
+                continue
+            if any(
+                set((body_name_1, body_name_2)) == set(pair)
+                for pair in exclude_pairs
+            ):
+                continue
             mesh_1 = self._get_body_mesh(body_name_1, mesh_idx_1)
             mesh_2 = self._get_body_mesh(body_name_2, mesh_idx_2)
             point_1 = contact.getNearestPoint1()
@@ -175,9 +199,10 @@ class PhysicsStateTracker:
                     mesh_2.face_normals[face_idx_2],
                 )
             )
+            # TODO: increment idx according to mesh_idx
             contact_info["vert_ids_local"].append((vert_idx_1, vert_idx_2))
             contact_info["face_ids_local"].append((face_idx_1, face_idx_2))
-
+            contact_info["mesh_idx"].append((mesh_idx_1, mesh_idx_2))
             if bidirectional:
                 # Reverse the order for the bidirectional entry
                 reverse_contact_info = collisions[(body_name_2, body_name_1)]
@@ -195,6 +220,9 @@ class PhysicsStateTracker:
                 )
                 reverse_contact_info["face_ids_local"].append(
                     (face_idx_2, face_idx_1)
+                )
+                reverse_contact_info["mesh_idx"].append(
+                    (mesh_idx_2, mesh_idx_1)
                 )
 
         return dict(collisions)
@@ -234,12 +262,13 @@ class PhysicsStateTracker:
 
         return out_transform
 
-    def visualize(self):
+    def visualize(self, *args, **kwargs):
         """
         Visualize the current state of the collision meshes with trimesh,
         highlighting the faces in collision.
         """
-        collisions = self.detect_collisions(bidirectional=False)
+        kwargs["bidirectional"] = False
+        collisions = self.detect_collisions(*args, **kwargs)
 
         # Create a scene
         scene = trimesh.Scene()
@@ -248,9 +277,11 @@ class PhysicsStateTracker:
         collision_faces = defaultdict(list)
         contact_points = []
         for (body_name_1, body_name_2), contact_info in collisions.items():
-            for face_idx_1, face_idx_2 in contact_info["face_ids_local"]:
-                collision_faces[body_name_1].append(face_idx_1)
-                collision_faces[body_name_2].append(face_idx_2)
+            for (face_idx_1, face_idx_2), (mesh_idx_1, mesh_idx_2) in zip(
+                contact_info["face_ids_local"], contact_info["mesh_idx"]
+            ):
+                collision_faces[(body_name_1, mesh_idx_1)].append(face_idx_1)
+                collision_faces[(body_name_2, mesh_idx_2)].append(face_idx_2)
             for point_1, point_2 in contact_info["contact_points"]:
                 contact_points.append(point_1)
                 contact_points.append(point_2)
@@ -263,7 +294,7 @@ class PhysicsStateTracker:
             mat[:3, 3] = transform.getTranslation()
             mesh = self._get_body_mesh(body_name, mesh_idx).copy()
             mesh.apply_transform(mat)
-            collided_faces = collision_faces[body_name]
+            collided_faces = collision_faces[(body_name, mesh_idx)]
             for face_idx in collided_faces:
                 mesh.visual.face_colors[face_idx] = np.array(
                     [255, 0, 0, 100], dtype=np.uint8
