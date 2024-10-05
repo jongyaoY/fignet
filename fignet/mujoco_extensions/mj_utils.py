@@ -230,7 +230,6 @@ def parse_meshes_initial(
     sim, excluded_bodies: Optional[List[str]] = None
 ) -> Dict[str, Dict]:
     body_meshes = {}
-    acc_vert_num = 0
     for geom_id in range(sim.model.ngeom):
         body_id = sim.model.geom_bodyid[geom_id]
         body_name = sim.model.body_id2name(body_id)
@@ -255,12 +254,14 @@ def parse_meshes_initial(
         body_meshes[body_name]["meshes"].append(mesh)
         body_meshes[body_name]["transforms"].append(geom_transform)
         body_meshes[body_name]["geom_ids"].append(geom_id)
-        body_meshes[body_name]["vert_offsets"].append(acc_vert_num)
-        acc_vert_num += len(mesh.vertices)
 
     out_body_meshes = {}
     for body_name, body_info in body_meshes.items():
+        acc_vert_num = 0
         if len(body_info["meshes"]) > 0:
+            for mesh in body_info["meshes"]:
+                body_info["vert_offsets"].append(acc_vert_num)
+                acc_vert_num += len(mesh.vertices)
             out_body_meshes[body_name] = body_info
 
     return out_body_meshes
