@@ -133,9 +133,9 @@ class PhysicsStateTracker:
 
         return trimesh.util.concatenate(mesh_list)
 
-    # TODO
-    def _get_mesh_local_offset(self, body_name, mesh_idx):
-        pass
+    def _get_vert_offset(self, body_name, mesh_idx):
+        body_info = self.body_meshes[body_name]
+        return body_info["vert_offsets"][mesh_idx]
 
     def detect_collisions(
         self,
@@ -187,11 +187,14 @@ class PhysicsStateTracker:
             point_2 = contact.getNearestPoint2()
             face_idx_1 = contact.b1
             face_idx_2 = contact.b2
-            vert_idx_1 = mesh_1.faces[face_idx_1]
-            vert_idx_2 = mesh_2.faces[face_idx_2]
+            # Increment idx according to mesh_idx
+            vert_idx_1 = mesh_1.faces[face_idx_1] + self._get_vert_offset(
+                body_name_1, mesh_idx_1
+            )
+            vert_idx_2 = mesh_2.faces[face_idx_2] + self._get_vert_offset(
+                body_name_2, mesh_idx_2
+            )
             contact_info = collisions[(body_name_1, body_name_2)]
-            assert np.all(vert_idx_1 < mesh_1.vertices.shape[0])
-            assert np.all(vert_idx_2 < mesh_2.vertices.shape[0])
             contact_info["contact_points"].append((point_1, point_2)),
             contact_info["contact_normals"].append(
                 (
@@ -199,7 +202,6 @@ class PhysicsStateTracker:
                     mesh_2.face_normals[face_idx_2],
                 )
             )
-            # TODO: increment idx according to mesh_idx
             contact_info["vert_ids_local"].append((vert_idx_1, vert_idx_2))
             contact_info["face_ids_local"].append((face_idx_1, face_idx_2))
             contact_info["mesh_idx"].append((mesh_idx_1, mesh_idx_2))
