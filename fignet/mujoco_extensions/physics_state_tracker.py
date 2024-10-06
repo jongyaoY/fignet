@@ -61,8 +61,10 @@ class PhysicsStateTracker:
         )
         self.sim.forward()
         self.kinematic_chain = parse_kinematic_chain(sim.model)
-        self.body_meshes = parse_meshes_initial(self.sim, self.excluded_bodies)
-        self.properties = parse_physical_properties(sim)
+        self.body_meshes = parse_meshes_initial(
+            sim.model, self.excluded_bodies
+        )
+        self.properties = parse_physical_properties(sim.model)
         self.col_obj_map = {}
         self.mesh_map = {}
         self._initialize_collision_objects()

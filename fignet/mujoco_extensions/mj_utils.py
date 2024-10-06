@@ -23,7 +23,6 @@
 from typing import Dict, List, Optional, Tuple, Union
 
 import mujoco
-import mujoco as mj
 import numpy as np
 import trimesh
 from robosuite.utils.binding_utils import MjModel, MjSim
@@ -42,7 +41,7 @@ def set_mjdata(
     Set the positions and orientations of objects in mujoco.MjData.
 
     Parameters:
-    sim (mj.MjSim): The MuJoCo simulation instance containing the MjData to update.
+    sim (mujoco.MjSim): The MuJoCo simulation instance containing the MjData to update.
     positions (np.ndarray or List[List[float]]): Array or list of object
     positions, shape (n_obj, 3).
     quaternions (np.ndarray or List[List[float]]): Array or list of object
@@ -83,7 +82,7 @@ def get_mjdata(
     Get the positions and orientations of all objects in mujoco.MjData.
 
     Parameters:
-    sim (mj.MjSim): The MuJoCo simulation instance containing the MjData to read.
+    sim (mujoco.MjSim): The MuJoCo simulation instance containing the MjData to read.
 
     Returns:
     Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
@@ -120,13 +119,13 @@ def get_body_transform(sim: MjSim, body_id: Union[int, str]) -> np.ndarray:
 
 
 def create_mesh_from_geom(
-    sim: MjSim, geom_id: int
+    model: MjModel, geom_id: int
 ) -> Optional[trimesh.Trimesh]:
     """
     Create a trimesh for the given geometry, focusing on collision-related geometries.
 
     Parameters:
-    sim : mj.MjSim
+    model : MjModel
         The MuJoCo simulation instance.
     geom_id : int
         The ID of the geometry in MuJoCo.
@@ -138,49 +137,49 @@ def create_mesh_from_geom(
     # Ignore geoms that are not used for collision
 
     if (
-        sim.model.geom_contype[geom_id] == 0
-        or sim.model.geom_conaffinity[geom_id] == 0
+        model.geom_contype[geom_id] == 0
+        or model.geom_conaffinity[geom_id] == 0
     ):
         return None  # Skip geometries not involved in collision detection.
-    geom_type = sim.model.geom_type[geom_id]
+    geom_type = model.geom_type[geom_id]
 
-    if geom_type == mj.mjtGeom.mjGEOM_PLANE:
+    if geom_type == mujoco.mjtGeom.mjGEOM_PLANE:
         size = np.array([3.0, 3.0, 0.1])
         mesh = trimesh.creation.box(extents=size)
         # Plane should be centered, so we shift the mesh down by half its thickness
         mesh.apply_translation([0, 0, -size[2] / 2.0])
-    elif geom_type == mj.mjtGeom.mjGEOM_MESH:
-        mesh_id = sim.model.geom_dataid[geom_id]
-        vertices = sim.model.mesh_vert[
-            sim.model.mesh_vertadr[mesh_id] : sim.model.mesh_vertadr[mesh_id]
-            + sim.model.mesh_vertnum[mesh_id]
+    elif geom_type == mujoco.mjtGeom.mjGEOM_MESH:
+        mesh_id = model.geom_dataid[geom_id]
+        vertices = model.mesh_vert[
+            model.mesh_vertadr[mesh_id] : model.mesh_vertadr[mesh_id]
+            + model.mesh_vertnum[mesh_id]
         ].reshape(-1, 3)
-        faces = sim.model.mesh_face[
-            sim.model.mesh_faceadr[mesh_id] : sim.model.mesh_faceadr[mesh_id]
-            + sim.model.mesh_facenum[mesh_id]
+        faces = model.mesh_face[
+            model.mesh_faceadr[mesh_id] : model.mesh_faceadr[mesh_id]
+            + model.mesh_facenum[mesh_id]
         ].reshape(-1, 3)
         mesh = trimesh.Trimesh(vertices, faces, process=False)
-    elif geom_type == mj.mjtGeom.mjGEOM_BOX:
-        size = sim.model.geom_size[geom_id]
+    elif geom_type == mujoco.mjtGeom.mjGEOM_BOX:
+        size = model.geom_size[geom_id]
         mesh = trimesh.creation.box(extents=size * 2)
-    elif geom_type == mj.mjtGeom.mjGEOM_SPHERE:
-        radius = sim.model.geom_size[geom_id][0]
+    elif geom_type == mujoco.mjtGeom.mjGEOM_SPHERE:
+        radius = model.geom_size[geom_id][0]
         mesh = trimesh.creation.icosphere(subdivisions=3, radius=radius)
-    elif geom_type == mj.mjtGeom.mjGEOM_CAPSULE:
-        radius = sim.model.geom_size[geom_id][0]
+    elif geom_type == mujoco.mjtGeom.mjGEOM_CAPSULE:
+        radius = model.geom_size[geom_id][0]
         height = (
-            sim.model.geom_size[geom_id][1] * 2
+            model.geom_size[geom_id][1] * 2
         )  # MuJoCo capsule height is hemispherical
         return trimesh.creation.capsule(radius=radius, height=height)
     elif geom_type == mujoco.mjtGeom.mjGEOM_ELLIPSOID:
         # Create ellipsoid by scaling an icosphere
         mesh = trimesh.creation.icosphere(radius=1.0, subdivisions=4)
-        scale = sim.model.geom_size[geom_id] * 2  # MuJoCo uses half-extents
+        scale = model.geom_size[geom_id] * 2  # MuJoCo uses half-extents
         mesh.apply_scale(scale)
-    elif geom_type == mj.mjtGeom.mjGEOM_CYLINDER:
+    elif geom_type == mujoco.mjtGeom.mjGEOM_CYLINDER:
         radius, height = (
-            sim.model.geom_size[geom_id][0],
-            sim.model.geom_size[geom_id][1] * 2,
+            model.geom_size[geom_id][0],
+            model.geom_size[geom_id][1] * 2,
         )
         mesh = trimesh.creation.cylinder(radius=radius, height=height)
     else:
@@ -190,15 +189,13 @@ def create_mesh_from_geom(
     return mesh
 
 
-def get_geom_transform(
-    sim: MjSim, geom_id: int, local: bool = False
-) -> np.ndarray:
+def get_geom_transform(model: MjModel, geom_id: int) -> np.ndarray:
     """
-    Get the transformation matrix for a geom using MjSim data.
+    Get the local transformation matrix for a geom using MjModel.
 
     Parameters:
-    sim : mj.MjSim
-        The MuJoCo simulation instance.
+    model : MjModel
+        The MuJoCo model instance.
     geom_id : int
         The ID of the geometry in MuJoCo.
 
@@ -207,32 +204,23 @@ def get_geom_transform(
         The 4x4 transformation matrix for the geometry.
     """
 
-    body_id = sim.model.geom_bodyid[geom_id]
-    body_transform = get_body_transform(sim, body_id)
-
-    geom_pos = sim.model.geom_pos[geom_id]
+    geom_pos = model.geom_pos[geom_id]
     # Convert MuJoCo quaternion [w, x, y, z] to trimesh quaternion [x, y, z, w]
-    geom_quat = sim.model.geom_quat[geom_id][[1, 2, 3, 0]]
+    geom_quat = model.geom_quat[geom_id][[1, 2, 3, 0]]
     geom_transform = np.eye(4)
     geom_transform[:3, :3] = R.from_quat(geom_quat).as_matrix()
     geom_transform[:3, 3] = geom_pos
 
-    if local:
-        full_transform = geom_transform
-    else:
-        # Combine the parent body transform with the geom local transform
-        full_transform = body_transform @ geom_transform
-
-    return full_transform
+    return geom_transform
 
 
 def parse_meshes_initial(
-    sim, excluded_bodies: Optional[List[str]] = None
+    model: MjModel, excluded_bodies: Optional[List[str]] = None
 ) -> Dict[str, Dict]:
     body_meshes = {}
-    for geom_id in range(sim.model.ngeom):
-        body_id = sim.model.geom_bodyid[geom_id]
-        body_name = sim.model.body_id2name(body_id)
+    for geom_id in range(model.ngeom):
+        body_id = model.geom_bodyid[geom_id]
+        body_name = model.body_id2name(body_id)
         if excluded_bodies and body_name in excluded_bodies:
             continue
         if body_name not in body_meshes:
@@ -244,13 +232,13 @@ def parse_meshes_initial(
             }
 
         try:
-            mesh = create_mesh_from_geom(sim, geom_id)
+            mesh = create_mesh_from_geom(model, geom_id)
         except ValueError as e:
             print(e)
             continue
         if mesh is None:
             continue  # Skip geometries not involved in collision detection.
-        geom_transform = get_geom_transform(sim, geom_id, local=True)
+        geom_transform = get_geom_transform(model, geom_id)
         body_meshes[body_name]["meshes"].append(mesh)
         body_meshes[body_name]["transforms"].append(geom_transform)
         body_meshes[body_name]["geom_ids"].append(geom_id)
@@ -267,23 +255,23 @@ def parse_meshes_initial(
     return out_body_meshes
 
 
-def parse_physical_properties(sim: MjSim) -> Dict[str, Dict]:
+def parse_physical_properties(model: MjModel) -> Dict[str, Dict]:
     """
     Parse and store static physical properties like friction and mass for each body.
 
     Parameters:
-    sim : mj.MjSim
+    model : MjModel
         The MuJoCo simulation instance.
 
     Returns:
     Dict[str, Dict]: Dictionary mapping body names to their physical properties.
     """
     properties = {}
-    for body_id in range(sim.model.nbody):
-        body_name = sim.model.body_id2name(body_id)
+    for body_id in range(model.nbody):
+        body_name = model.body_id2name(body_id)
         # Get the starting index and number of geometries for the body
-        start_geom_id = sim.model.body_geomadr[body_id]
-        geom_count = sim.model.body_geomnum[body_id]
+        start_geom_id = model.body_geomadr[body_id]
+        geom_count = model.body_geomnum[body_id]
 
         # Slice the geom_friction array to get the friction values for all
         # geoms of the body, now assume one body has only one geom!
@@ -291,18 +279,18 @@ def parse_physical_properties(sim: MjSim) -> Dict[str, Dict]:
         restitution = []
         for geom_index in range(start_geom_id, start_geom_id + geom_count):
             if (
-                sim.model.geom_contype[geom_index] != 0
-                and sim.model.geom_conaffinity[geom_index] != 0
+                model.geom_contype[geom_index] != 0
+                and model.geom_conaffinity[geom_index] != 0
             ):
-                friction.append(sim.model.geom_friction[geom_index])
-                restitution.append(sim.model.geom_solref[geom_index][1])
+                friction.append(model.geom_friction[geom_index])
+                restitution.append(model.geom_solref[geom_index][1])
         # TODO: Take only the properties from the first geom
         friction = friction[0]
         restitution = restitution[0]
 
-        mass = sim.model.body_mass[body_id]
-        inertia = sim.model.body_inertia[body_id]
-        is_dynamic = sim.model.body_dofnum[body_id] > 0
+        mass = model.body_mass[body_id]
+        inertia = model.body_inertia[body_id]
+        is_dynamic = model.body_dofnum[body_id] > 0
         properties[body_name] = {
             "friction": friction,
             "restitution": restitution,
