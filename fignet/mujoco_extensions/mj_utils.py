@@ -307,6 +307,10 @@ def parse_kinematic_chain(model: MjModel):
         # Get joint information
         joint_name = model.joint_id2name(joint_id)
         joint_type = JointType(model.jnt_type[joint_id])
+        if joint_type == JointType.FREE:
+            joint_axis = np.zeros(3, dtype=np.float64)
+        else:
+            joint_axis = model.jnt_axis[joint_id]
         joint_qposadr = model.jnt_qposadr[joint_id]
         joint_dofadr = model.jnt_dofadr[joint_id]
         body_id = model.jnt_bodyid[joint_id]
@@ -320,6 +324,7 @@ def parse_kinematic_chain(model: MjModel):
         kinematic_chain.append(
             {
                 "joint_name": joint_name,
+                "joint_axis": joint_axis,
                 "joint_type": joint_type,
                 "qpos_address": joint_qposadr,
                 "dof_address": joint_dofadr,

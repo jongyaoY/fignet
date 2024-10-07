@@ -127,7 +127,7 @@ class MjSimLearned(MjSim):
             # self.physical_tracker.visualize()
             # if self.scn_info is None:
             self.scn_info = get_scene_info(
-                sim=self,
+                model=self.model,
                 body_meshes=self.physical_tracker.body_meshes,
                 properties=self.physical_tracker.properties,
                 obj_positions=np.array(self.positions_history),

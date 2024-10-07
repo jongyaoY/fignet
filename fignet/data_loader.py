@@ -167,7 +167,7 @@ class MujocoDataset(torch.utils.data.Dataset):
             # collison_det.visualize()
 
             scn_info = get_scene_info(
-                sim=sim,
+                model=sim.model,
                 body_meshes=tracker.body_meshes,
                 properties=tracker.properties,
                 obj_positions=np.vstack(

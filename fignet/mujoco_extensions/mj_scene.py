@@ -23,7 +23,7 @@
 from typing import Any, Dict, Optional
 
 import numpy as np
-from robosuite.utils.binding_utils import MjSim
+from robosuite.utils.binding_utils import MjModel
 
 from fignet.scene import SceneInfoDict, SceneInfoKey
 from fignet.types import KinematicType
@@ -33,20 +33,9 @@ from fignet.utils.mesh import (
     get_vertices_offsets,
 )
 
-# render_context = MjRenderContext(sim)
-# viewer = OpenCVRenderer(sim)
-# viewer.render()
-# sim.add_render_context(render_context)
-# im = sim.render(
-#     width=640,
-#     height=480,
-#     # camera_name=viewer.camera_name
-# )
-# im = np.flip(im, axis=0)
-
 
 def get_scene_info(
-    sim: MjSim,
+    model: MjModel,
     body_meshes: Dict,
     properties: Dict[str, Dict[str, Any]],
     obj_positions: np.ndarray,
@@ -89,10 +78,10 @@ def get_scene_info(
     }
     for body_name, body_info in body_meshes.items():
         body_index = obj_offsets_dict[body_name]
-        body_id = sim.model.body_name2id(body_name)
+        body_id = model.body_name2id(body_name)
         # Extract the translation part of the first transform as the reference
         # COM position for all meshes belonging to this body
-        com_ref_pos[body_index] = sim.model.body_pos[body_id]
+        com_ref_pos[body_index] = model.body_pos[body_id]
 
     for t in range(seq_len):
         for body_name, _ in body_meshes.items():

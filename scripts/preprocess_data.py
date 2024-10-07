@@ -110,7 +110,7 @@ def process_episode(traj, sim_cfg, ep_i, lock, counter):
         )
         collisions = tracker.detect_collisions(bidirectional=True)
         scn_info = get_scene_info(
-            sim=sim,
+            model=sim.model,
             body_meshes=tracker.body_meshes,
             properties=tracker.properties,
             obj_positions=positions,
