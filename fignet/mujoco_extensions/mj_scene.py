@@ -45,9 +45,9 @@ def get_scene_info(
     contains_targets: bool = False,
 ) -> SceneInfoDict:
     # ! Adhoc solution:
-    name_id_map = {}
-    for name, idx in obj_ids.items():
-        name_id_map["_".join([name, "main"])] = idx
+    name_id_map = obj_ids
+    # for name, idx in obj_ids.items():
+    #     name_id_map["_".join([name, "main"])] = idx
 
     # Compute vertices
     vert_seq = get_vertices_from_history(

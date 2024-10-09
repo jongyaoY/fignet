@@ -62,14 +62,14 @@ def get_object_names(sim):
     for name in sim.model.body_names:
         if name == "world":
             continue
-        if "_" in name:
-            name = name.split("_")[0]
+        # if "_" in name:
+        #     name = name.split("_")[0]
         names.append(name)
     return names
 
 
 def init_data(scene: Scene, sim: MjSim):
-    object_properties = scene.get_properties()
+    # object_properties = scene.get_properties()
     object_names = get_object_names(sim)
     data = {
         "obj_id": {},
@@ -80,27 +80,21 @@ def init_data(scene: Scene, sim: MjSim):
         "velr": [],
     }
 
-    floor_prop = process_object_properties(object_properties["floor"])
-    meta_data = {
-        "env": {
-            "floor": {
-                "type": "box",
-                "extents": [3.0, 3.0, 0.5],
-                "properties": floor_prop,
-                "initial_pose": [0, 0, -0.5 / 2.0],
-            }
-        },
-        "objects": {},
-    }
+    # floor_prop = process_object_properties(object_properties["floor"])
+    # meta_data = {
+    #     "env": {
+    #         "floor": {
+    #             "type": "box",
+    #             "extents": [3.0, 3.0, 0.5],
+    #             "properties": floor_prop,
+    #             "initial_pose": [0, 0, -0.5 / 2.0],
+    #         }
+    #     },
+    #     "objects": {},
+    # }
     for i, name in enumerate(object_names):
         data["obj_id"][name] = i
-        obj_prop = process_object_properties(object_properties[name])
-        mesh_file = obj_prop["mesh"]
-        del obj_prop["mesh"]
-        meta_data["objects"].update(
-            {name: {"mesh": mesh_file, "properties": obj_prop}}
-        )
-    data["meta_data"] = meta_data
+    # data["meta_data"] = meta_data
     data["mujoco_xml"] = scene.to_xml()
     return data
 
@@ -175,8 +169,10 @@ def rollout(
             )
             rand_quat = R.random().as_quat()[[3, 0, 1, 2]]
             rand_pose = np.concatenate([rand_pos, rand_quat], axis=-1)
-            joint_name = name + "_joint0"
-            sim.data.set_joint_qpos(joint_name, rand_pose)
+            bid = sim.model.body_name2id(name)
+            jnt_id = sim.model.body_jntadr[bid]
+            jnt_name = sim.model.joint_id2name(jnt_id)
+            sim.data.set_joint_qpos(jnt_name, rand_pose)
         sim.forward()
         if sim.data.ncon == 0:
             successful_sample = True

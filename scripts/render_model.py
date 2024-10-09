@@ -211,9 +211,9 @@ def render_simulator(
         if pred_traj is None:
             pred_traj = gt_traj[input_seq_length - 1 :, ...]
         screen_prd = fignet.visualize_trajectory(
-            mujoco_xml,
-            pred_traj,
-            obj_id,
+            mujoco_xml=mujoco_xml,
+            pose_traj=pred_traj,
+            pose_addr=obj_id,
             height=height,
             width=width,
             off_screen=off_screen,

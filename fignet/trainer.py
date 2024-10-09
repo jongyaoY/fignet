@@ -419,16 +419,16 @@ class Trainer:
                         try:
                             screens_pred = visualize_trajectory(
                                 mujoco_xml=mujoco_xml,
-                                traj=pred_traj,
-                                obj_ids=obj_ids,
+                                pose_traj=pred_traj,
+                                pose_addr=obj_ids,
                                 height=self._video_height,
                                 width=self._video_width,
                                 off_screen=True,
                             )
                             screens_gt = visualize_trajectory(
                                 mujoco_xml=mujoco_xml,
-                                traj=gt_poses,
-                                obj_ids=obj_ids,
+                                pose_traj=gt_poses,
+                                pose_addr=obj_ids,
                                 height=self._video_height,
                                 width=self._video_width,
                                 off_screen=True,

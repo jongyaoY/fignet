@@ -186,7 +186,7 @@ class MjSimLearned(MjSim):
             latest_positions = np.empty_like(prev_positions)
             latest_quaternions = np.empty_like(prev_quaternions)
             for name, rel_transform in rel_transforms.items():
-                name = name.split("_")[0]  # ! Adhoc solution
+                # name = name.split("_")[0]  # ! Adhoc solution
                 pose_id = self.name_id_map[name]
                 prev_transform = pose_to_transform(
                     np.concatenate(

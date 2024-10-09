@@ -64,31 +64,46 @@ def rollout(
 
 def visualize_trajectory(
     mujoco_xml: str,
-    traj: np.ndarray,
-    obj_ids: dict,
+    pose_traj: np.ndarray,
+    pose_addr: dict,
     height: int = 480,
     width: int = 640,
+    jnt_addr: dict = None,
+    jnt_traj: np.ndarray = None,
     off_screen: bool = False,
+    camera_name: str = None,
 ):
     sim = MjSim.from_xml_string(mujoco_xml)
 
     render_context = MjRenderContext(sim)
     sim.add_render_context(render_context)
     viewer = OpenCVRenderer(sim)
+    if camera_name is not None:
+        viewer.camera_name = camera_name
+
     dt = 0.02  # TODO
-    seq_length = traj.shape[0]
+    seq_length = pose_traj.shape[0]
     if off_screen:
         screens = []
     for t in range(seq_length):
-        for name, ob_id in obj_ids.items():
-            pose = traj[t, ob_id, :]
-            # bid = sim.model.body_name2id(name)
-            q_id = ob_id
-            # q_id = sim.model.body_jntadr[bid]
-            sim.data.qpos[q_id * 7 : q_id * 7 + 3] = pose[:3]
-            sim.data.qpos[q_id * 7 + 3 : q_id * 7 + 7] = pose[3:][
+        for name, addr in pose_addr.items():
+            pose = pose_traj[t, addr, :]
+            bid = sim.model.body_name2id(name)
+            jnt_id = sim.model.body_jntadr[
+                bid
+            ]  # Free bodies have only one joint
+            q_id = sim.model.jnt_qposadr[jnt_id]
+            sim.data.qpos[q_id : q_id + 3] = pose[:3]
+            sim.data.qpos[q_id + 3 : q_id + 7] = pose[3:][
                 [3, 0, 1, 2]
             ]  # xyzw -> wxyz
+        if jnt_addr is not None:
+            if jnt_traj is None:
+                raise ValueError(
+                    "Joint address and trajectory must be None at the same time!"
+                )
+            for jnt_name, addr in jnt_addr.items():
+                sim.data.set_joint_qpos(jnt_name, jnt_traj[t, addr])
         sim.forward()
         if not off_screen:
             viewer.render()
