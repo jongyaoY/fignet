@@ -29,9 +29,9 @@ import numpy as np
 import torch
 import torch.utils
 
-from fignet.mujoco_extensions.mj_scene import get_scene_info
 from fignet.mujoco_extensions.mj_sim_learned import MjSimLearned
 from fignet.mujoco_extensions.physics_state_tracker import PhysicsStateTracker
+from fignet.mujoco_extensions.preprocess import get_scene_info
 
 
 def collate_fn(batch: list):
