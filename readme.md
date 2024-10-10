@@ -29,6 +29,7 @@ the paper. Welcome to contribute if you find errors in the implementation.
 
 - [Pytorch](https://pytorch.org/)
 - [Pytorch3D](https://github.com/facebookresearch/pytorch3d)
+- [PyTorch Geometric](https://github.com/pyg-team/pytorch_geometric)
 - [hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl)
 - [trimesh](https://trimesh.org)
 - [mujoco](https://mujoco.org/)
@@ -65,9 +66,8 @@ The dataset is stored as a .npz file. Each trajectory contains a dictionary
 {
   "pos": (traj_len, n_obj, 3), # xyz
   "quat": (traj_len, n_obj, 4), # xyzw
-  "obj_ids": {"obj_name": obj_id},
-  "meta_data": {}, # describes the scene and properties of objects
-  "mujoco_xml": str, # xml string to initialize mujoco simulation
+  "obj_ids": {"obj_name": obj_id}, # map from object name to id in pos and quat
+  "mujoco_xml": str, # xml string to initialize mujoco model instance
 }
 ```
 
@@ -96,7 +96,9 @@ graph consists of two sets of nodes (mesh and object nodes) and four sets of edg
 (vert-vert, vert-object, object-vert, face-face). According to
 following work of FIGNet \[2\], omitting
 the mesh-mesh edges helps the model to scale without affecting the accuracy.
-The implementation also adds the option to omit the mesh-mesh edges. Finally, the message passing layer
+Therefore, in
+this implementation the mesh-mesh edges are omitted. Finally,
+the message passing layer
 is augmented to handle face-face message passing.
 
 Inspired by SDF-Sim \[4\], we
@@ -187,11 +189,9 @@ python scripts/preprocess_data.py --data_path=[path_to_dataset/train_dataset_nam
 
 This process takes around 8 hours with `num_workers=8`, and will create a
 folder `path_to_dataset/train_dataset_name` with all
-the pre-computed graphs stored inside. The dataset with 1M steps will create
-960k graphs and takes around 335GB disk space (uncompressed). Alternatively, the pre-computed
-graphs for training can also be downloaded
-[here](https://cloud.dfki.de/owncloud/index.php/s/NgLbrWykYKcSabj). It needs to
-be uncompressed after download.
+the pre-computed information to build graph. The dataset with 1M steps will create
+960k files and takes around 300GB disk space (uncompressed). The pre-computed
+dataset for training will soon be uploaded :construction:.
 
 ### 2. Run the training
 
@@ -334,17 +334,17 @@ Simulator and Mesh Graph Network Simulator:
 following files are direct copied from the
 [gns](https://github.com/geoelements/gns) (MIT License):
 
-- [normalization.py](fignet/normalization.py)
+- [normalization.py](fignet/modules/normalization.py)
 
-The following files are partially copied from
-[gns](https://github.com/geoelements/gns):
+The implementation uses the augmented Heterogenous graph convolution layer from
+PyG, which also updates edge attributes and returns both node and edge
+attributes (see [Issue #9677](https://github.com/pyg-team/pytorch_geometric/issues/9677)):
 
-- [graph_networks.py](fignet/graph_networks.py)
-- [data_loader.py](fignet/data_loader.py)
+- [hetero_conv.py](fignet/modules/hetero_conv.py)
 
 ### Funding
 
-This work is carried out as part of the [ChargePal
+Until 30.Sep.2024, this work was carried out as part of the [ChargePal
 project](https://www.dfki.de/en/web/research/projects-and-publications/project/chargepal)
 through a grant of the German Federal Ministry for Economic Affairs and Climate
 Action (BMWK) with the grant number 01ME19003D
