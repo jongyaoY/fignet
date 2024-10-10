@@ -22,6 +22,7 @@
 
 import numpy as np
 
+from fignet.data.scene_info import SceneInfoDict, SceneInfoKey
 from fignet.graph_builders.base import GraphBuilder
 from fignet.graph_builders.common import (
     FIGEdgeType,
@@ -29,7 +30,6 @@ from fignet.graph_builders.common import (
     GraphMetaData,
     cal_inner_connectivity,
 )
-from fignet.scene import SceneInfoDict, SceneInfoKey
 
 EdgeTypes = [
     FIGEdgeType.OConnectV,

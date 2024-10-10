@@ -23,9 +23,9 @@
 
 import numpy as np
 
-from fignet.data import HeteroGraph
+from fignet.data.hetero_graph import HeteroGraph
+from fignet.data.scene_info import SceneInfoDict, SceneInfoKey
 from fignet.graph_builders import GraphBuildCfg, make_builder
-from fignet.scene import SceneInfoDict, SceneInfoKey
 from fignet.utils.conversion import to_tensor
 
 

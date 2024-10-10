@@ -33,12 +33,12 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import ToDevice
 from torchvision import transforms as T
 
-from fignet.data_loader import MujocoDataset, collate_fn
+from fignet.data.mujoco_dataset import MujocoDataset, collate_fn
+from fignet.data.transform import ToHeteroGraph
+from fignet.data.types import KinematicType
 from fignet.graph_builders import FIGNodeType, GraphBuildCfg
 from fignet.logger import Logger
 from fignet.simulator import LearnedSimulator, SimCfg
-from fignet.transform import ToHeteroGraph
-from fignet.types import KinematicType
 from fignet.utils.conversion import to_numpy
 from fignet.utils.geometric import rot_diff
 from fignet.utils.plt import init_fig, plot_grad_flow

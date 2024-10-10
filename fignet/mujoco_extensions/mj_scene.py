@@ -25,8 +25,8 @@ from typing import Any, Dict, Optional
 import numpy as np
 from robosuite.utils.binding_utils import MjModel
 
-from fignet.scene import SceneInfoDict, SceneInfoKey
-from fignet.types import KinematicType
+from fignet.data.scene_info import SceneInfoDict, SceneInfoKey
+from fignet.data.types import KinematicType
 from fignet.utils.mesh import (
     get_vertices_from_history,
     get_vertices_num,
@@ -40,20 +40,16 @@ def get_scene_info(
     properties: Dict[str, Dict[str, Any]],
     obj_positions: np.ndarray,
     obj_quaternions: np.ndarray,
-    obj_ids: Dict[str, int],
+    pose_addr: Dict[str, int],
     collisions: Optional[Dict[str, Dict]] = None,
     contains_targets: bool = False,
 ) -> SceneInfoDict:
-    # ! Adhoc solution:
-    name_id_map = obj_ids
-    # for name, idx in obj_ids.items():
-    #     name_id_map["_".join([name, "main"])] = idx
 
     # Compute vertices
     vert_seq = get_vertices_from_history(
         obj_positions=obj_positions,
         obj_quaternions=obj_quaternions,
-        obj_ids=name_id_map,
+        pose_addr=pose_addr,
         body_meshes=body_meshes,
     )
 
@@ -86,10 +82,8 @@ def get_scene_info(
     for t in range(seq_len):
         for body_name, _ in body_meshes.items():
             body_index = obj_offsets_dict[body_name]
-            if body_name in name_id_map:
-                com_seq[t, body_index] = obj_positions[
-                    t, name_id_map[body_name]
-                ]
+            if body_name in pose_addr:
+                com_seq[t, body_index] = obj_positions[t, pose_addr[body_name]]
             else:
                 com_seq[t, body_index] = com_ref_pos[body_index]
 

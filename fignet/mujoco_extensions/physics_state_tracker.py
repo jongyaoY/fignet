@@ -30,6 +30,7 @@ from robosuite.utils.binding_utils import MjSim
 
 from fignet.mujoco_extensions.mj_utils import (
     get_body_transform,
+    parse_actuators,
     parse_kinematic_chain,
     parse_meshes_initial,
     parse_physical_properties,
@@ -64,6 +65,7 @@ class PhysicsStateTracker:
         self.body_meshes = parse_meshes_initial(
             sim.model, self.excluded_bodies
         )
+        self.actuators = parse_actuators(sim.model)
         self.properties = parse_physical_properties(sim.model)
         self.col_obj_map = {}
         self.mesh_map = {}

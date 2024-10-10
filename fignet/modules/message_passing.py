@@ -31,7 +31,7 @@ from torch_geometric.nn.module_dict import ModuleDict
 from torch_geometric.typing import EdgeType, NodeType
 from torch_scatter import scatter
 
-from fignet.data import HeteroGraph
+from fignet.data.hetero_graph import HeteroGraph
 from fignet.graph_builders import FIGEdgeType, FIGNodeType
 from fignet.modules.base_models import Decoder, Encoder, build_mlp
 from fignet.modules.hetero_conv import GenericHeteroConv

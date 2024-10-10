@@ -71,7 +71,7 @@ repos:
           (?x)^(
               .*setup\.py|
               .*__init__\.py|
-              fignet/normalization.py|
+              fignet/modules/normalization.py|
               fignet/logger.py|
           )$
         args:
@@ -82,7 +82,7 @@ repos:
     rev: v1.3.1
     hooks:
       - id: insert-license
-        files: fignet/normalization.py$
+        files: fignet/modules/normalization.py$
         args:
           - --license-filepath
           - docs/license-gns

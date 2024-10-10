@@ -29,10 +29,10 @@ import torch
 import torch.nn as nn
 from torch_geometric.typing import NodeOrEdgeType
 
-from fignet.data import HeteroGraph
+from fignet.data.hetero_graph import HeteroGraph
 from fignet.graph_builders import GraphBuildCfg
 from fignet.modules.message_passing import EncodeProcessDecode
-from fignet.normalization import Normalizer
+from fignet.modules.normalization import Normalizer
 
 
 @dataclass

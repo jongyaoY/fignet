@@ -301,6 +301,25 @@ def parse_physical_properties(model: MjModel) -> Dict[str, Dict]:
     return properties
 
 
+def parse_actuators(model: MjModel):
+    actuators = []
+    for actuator_id in range(model.nu):
+        actuator_info = {}
+        actuated_joint_id = model.actuator_trnid[actuator_id, 0]
+        actuated_joint_name = model.joint_id2name(actuated_joint_id)
+        actuator_info["actuator_id"] = actuator_id
+        actuator_info["joint_name"] = actuated_joint_name
+        actuator_info["joint_id"] = actuated_joint_id
+
+        if model.actuator_ctrllimited[actuator_id]:
+            actuator_range = model.actuator_ctrlrange[actuator_id]
+        else:
+            actuator_range = np.zeros(2, dtype=np.float64)
+        actuator_info["range"] = actuator_range
+        actuators.append(actuator_info)
+    return actuators
+
+
 def parse_kinematic_chain(model: MjModel):
     kinematic_chain = []
     for joint_id in range(model.njnt):
@@ -313,6 +332,11 @@ def parse_kinematic_chain(model: MjModel):
             joint_axis = model.jnt_axis[joint_id]
         joint_qposadr = model.jnt_qposadr[joint_id]
         joint_dofadr = model.jnt_dofadr[joint_id]
+
+        if model.jnt_limited[joint_id]:
+            joint_range = model.jnt_range[joint_id]
+        else:
+            joint_range = np.zeros(2, dtype=np.float64)
         body_id = model.jnt_bodyid[joint_id]
 
         # Get body information
@@ -325,6 +349,7 @@ def parse_kinematic_chain(model: MjModel):
             {
                 "joint_name": joint_name,
                 "joint_axis": joint_axis,
+                "joint_range": joint_range,
                 "joint_type": joint_type,
                 "qpos_address": joint_qposadr,
                 "dof_address": joint_dofadr,

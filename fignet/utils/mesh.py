@@ -61,7 +61,7 @@ def get_vertices_from_history(
     obj_positions: np.ndarray,
     obj_quaternions: np.ndarray,
     body_meshes: Dict[str, Dict],
-    obj_ids: Dict[str, int],
+    pose_addr: Dict[str, int],
 ) -> np.ndarray:
     """
     Given history of object positions and quaternions, return the stacked
@@ -73,7 +73,7 @@ def get_vertices_from_history(
     obj_quaternions (np.ndarray): Array of shape (history_length, num_obj, 4)
                             containing the quaternions history for each object.
     body_meshes (Dict[str, Dict]): Dictionary of body meshes.
-    obj_ids (Dict[str, int]): Dictionary mapping object names to their IDs.
+    pose_addr (Dict[str, int]): Dictionary mapping object names to their IDs.
 
     Returns:
     np.ndarray: Stacked vertices of all objects, shape (history_length, num_verts, 3).
@@ -84,10 +84,10 @@ def get_vertices_from_history(
     for body_name in body_meshes.keys():
         body_info = body_meshes[body_name]
         # Get body poses
-        if body_name in obj_ids:
-            obj_id = obj_ids[body_name]
-            pos = obj_positions[:, obj_id]
-            quat = obj_quaternions[:, obj_id]
+        if body_name in pose_addr:
+            p_id = pose_addr[body_name]
+            pos = obj_positions[:, p_id]
+            quat = obj_quaternions[:, p_id]
             poses = np.concatenate([pos, quat], axis=-1)
         else:
             num_outliers += 1

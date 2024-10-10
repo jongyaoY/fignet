@@ -115,7 +115,7 @@ def process_episode(traj, sim_cfg, ep_i, lock, counter):
             properties=tracker.properties,
             obj_positions=positions,
             obj_quaternions=quaternions,
-            obj_ids=obj_ids,
+            pose_addr=obj_ids,
             collisions=collisions,
             contains_targets=True,
         )

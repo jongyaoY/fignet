@@ -21,24 +21,27 @@
 # SOFTWARE.
 
 import enum
-from typing import Union
+from typing import Any, Dict
 
-import numpy as np
-from torch import Tensor
-
-TensorType = Union[np.ndarray, Tensor]
+from fignet.data.types import MetaEnum
 
 
-class MetaEnum(enum.EnumMeta):
-    def __contains__(cls, item):
-        try:
-            cls(item)
-        except ValueError:
-            return False
-        return True
+class SceneInfoKey(enum.Enum, metaclass=MetaEnum):
+    VERT_SEQ = "vert_seq"
+    COM_SEQ = "com_seq"
+    VERT_PROP = "vert_prop"
+    OBJ_PROP = "obj_prop"
+    VERT_KINEMATIC = "vert_kinematic"
+    OBJ_KINEMATIC = "obj_kinematic"
+    VERT_REF_POS = "vert_ref_pos"
+    COM_REF_POS = "com_ref_pos"
+    VERT_OFFSETS_DICT = "vert_offsets_dict"
+    NUM_VERTS_DICT = "num_verts_dict"
+    OBJ_OFFSETS_DICT = "obj_offsets_dict"
+    VERT_TARGET = "vert_target"
+    COM_TARGET = "com_target"
+
+    CONTACT_PAIRS = "contact_pairs"
 
 
-class KinematicType(enum.IntEnum):
-    STATIC = 0
-    DYNAMIC = 1
-    SIZE = 1
+SceneInfoDict = Dict[SceneInfoKey, Any]

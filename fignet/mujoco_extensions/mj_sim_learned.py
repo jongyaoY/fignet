@@ -28,11 +28,11 @@ import numpy as np
 from robosuite.utils.binding_utils import MjSim
 from torch_geometric.transforms import ToDevice
 
+from fignet.data.types import KinematicType
 from fignet.mujoco_extensions.mj_scene import get_scene_info
 from fignet.mujoco_extensions.mj_utils import set_mjdata
 from fignet.mujoco_extensions.physics_state_tracker import PhysicsStateTracker
 from fignet.simulator import LearnedSimulator
-from fignet.types import KinematicType
 from fignet.utils.conversion import to_numpy
 from fignet.utils.geometric import pose_to_transform, transform_to_pose
 from fignet.utils.scene import SceneInfoKey, build_graph
@@ -44,7 +44,6 @@ class MjSimLearned(MjSim):
         super(MjSimLearned, self).__init__(model)
         self.positions_history = None
         self.quaternions_history = None
-        self.scn_info = None
 
     def set_state(
         self,
@@ -125,19 +124,17 @@ class MjSimLearned(MjSim):
                 bidirectional=True
             )
             # self.physical_tracker.visualize()
-            # if self.scn_info is None:
-            self.scn_info = get_scene_info(
+            scn_info = get_scene_info(
                 model=self.model,
                 body_meshes=self.physical_tracker.body_meshes,
                 properties=self.physical_tracker.properties,
                 obj_positions=np.array(self.positions_history),
                 obj_quaternions=np.array(self.quaternions_history),
-                obj_ids=self.name_id_map,
+                pose_addr=self.name_id_map,
                 collisions=collisions,
                 contains_targets=False,
             )
 
-            scn_info = self.scn_info
             graph = build_graph(
                 scn_info, self.gnn_model.cfg.build_cfg, self.gnn_model.training
             )

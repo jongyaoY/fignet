@@ -26,8 +26,8 @@ from typing import Dict, Optional
 import numpy as np
 from torch_geometric.typing import EdgeType, NodeType
 
-from fignet.scene import SceneInfoKey
-from fignet.types import MetaEnum
+from fignet.data.scene_info import SceneInfoKey
+from fignet.data.types import MetaEnum
 
 
 class FIGNodeType(MetaEnum):
@@ -38,6 +38,7 @@ class FIGNodeType(MetaEnum):
 class FIGRelationType(MetaEnum):
     COLLIDE = "collide"
     CONNECT = "connect"
+    JOINT = "joint"
 
 
 class FIGEdgeType(MetaEnum):
@@ -45,6 +46,7 @@ class FIGEdgeType(MetaEnum):
     OConnectV = (FIGNodeType.OBJECT, FIGRelationType.CONNECT, FIGNodeType.VERT)
     VConnectO = (FIGNodeType.VERT, FIGRelationType.CONNECT, FIGNodeType.OBJECT)
     VCollideV = (FIGNodeType.VERT, FIGRelationType.COLLIDE, FIGNodeType.VERT)
+    OJointO = (FIGNodeType.OBJECT, FIGRelationType.JOINT, FIGNodeType.OBJECT)
 
 
 @dataclass

@@ -145,10 +145,6 @@ class MujocoDataset(torch.utils.data.Dataset):
             ]  # (seq_len, n_obj, 4) input sequence
             target_posisitons = self._data[trajectory_idx]["pos"][time_idx]
             target_quats = self._data[trajectory_idx]["quat"][time_idx]
-            # poses = np.concatenate([positions, quats], axis=-1)
-            # target_poses = np.concatenate(
-            #     [target_posisitons, target_quats], axis=-1
-            # )
 
             sim = MjSimLearned.from_xml_string(
                 str(self._data[trajectory_idx]["mujoco_xml"])
@@ -164,7 +160,6 @@ class MujocoDataset(torch.utils.data.Dataset):
             )
 
             collisions = tracker.detect_collisions(bidirectional=True)
-            # collison_det.visualize()
 
             scn_info = get_scene_info(
                 model=sim.model,
@@ -176,20 +171,10 @@ class MujocoDataset(torch.utils.data.Dataset):
                 obj_quaternions=np.vstack(
                     [quats, target_quats[np.newaxis, :]]
                 ),
-                obj_ids=obj_ids,
+                pose_addr=obj_ids,
                 collisions=collisions,
                 contains_targets=True,
             )
-            # scn_desc = dict(self._data[trajectory_idx]["meta_data"].item())
-
-            # scn = Scene(
-            #     scn_desc=scn_desc, collision_radius=self._collision_radius
-            # )
-            # scn.synchronize_states(
-            #     obj_poses=poses,
-            #     obj_ids=obj_ids,
-            # )
-            # scn_info_ = scn.to_dict(target_poses=target_poses, obj_ids=obj_ids)
         else:
             if os.path.exists(self._file_list[idx]):
                 scn_info = self._load_scn_info(self._file_list[idx])
@@ -201,16 +186,6 @@ class MujocoDataset(torch.utils.data.Dataset):
         else:
             out = scn_info
 
-        # from fignet.scene import SceneInfoKey
-        # assert np.allclose(
-        #     scn_info_[SceneInfoKey.VERT_SEQ][:, 8:, :],
-        #     scn_info[SceneInfoKey.VERT_SEQ][:, 8:, :],
-        #     atol=1e-8
-        # )
-        # assert np.allclose(
-        #     scn_info_[SceneInfoKey.VERT_TARGET], scn_info[SceneInfoKey.VERT_TARGET],
-        #     atol=1e-4
-        # )
         return out
 
     def _get_trajectory(self, idx):
@@ -232,7 +207,6 @@ class MujocoDataset(torch.utils.data.Dataset):
         obj_ids = self._data[trajectory_idx]["obj_id"]
         obj_ids = dict(obj_ids.item())
         mujoco_xml = str(self._data[trajectory_idx]["mujoco_xml"])
-        scn_desc = dict(self._data[trajectory_idx]["meta_data"].item())
         positions = self._data[trajectory_idx]["pos"][
             start:end
         ]  # (seq_len, n_obj, 3) input sequence
@@ -244,4 +218,4 @@ class MujocoDataset(torch.utils.data.Dataset):
         traj = {"obj_ids": obj_ids, "pose_seq": pose_seq}
         if self._transform is not None:
             traj = self._transform(traj)
-        return traj, mujoco_xml, scn_desc
+        return traj, mujoco_xml

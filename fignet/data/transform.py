@@ -20,9 +20,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from fignet.data import HeteroGraph
+from fignet.data.hetero_graph import HeteroGraph
+from fignet.data.scene_info import SceneInfoDict
 from fignet.graph_builders import GraphBuildCfg
-from fignet.scene import SceneInfoDict
 from fignet.utils.conversion import dict_to_tensor
 from fignet.utils.scene import build_graph
 

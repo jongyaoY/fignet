@@ -20,8 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from fignet.data.scene_info import SceneInfoDict
 from fignet.graph_builders.common import GraphBuildResult
-from fignet.scene import SceneInfoDict
 
 REGISTERED_BUILDERS = {}
 
