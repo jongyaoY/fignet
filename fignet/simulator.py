@@ -202,6 +202,12 @@ class LearnedSimulator(nn.Module):
 
         return input
 
+    def forward(self, input: HeteroGraph):
+        out, _ = self.predict_accelerations(input)
+        if not self.training:
+            out = self.denormalize_accelerations(out)
+        return out
+
     def predict_accelerations(
         self,
         input: HeteroGraph,

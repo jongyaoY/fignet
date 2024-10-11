@@ -138,39 +138,24 @@ class MjSimLearned(MjSim):
             graph = build_graph(
                 scn_info, self.gnn_model.cfg.build_cfg, self.gnn_model.training
             )
-            v_pred_acc, o_pred_acc = self.gnn_model.predict_accelerations(
-                ToDevice(self.gnn_model.device)(graph)
-            )
-            v_pred_acc = self.gnn_model.denormalize_accelerations(v_pred_acc)
-            o_pred_acc = self.gnn_model.denormalize_accelerations(o_pred_acc)
-            v_pred_acc = to_numpy(v_pred_acc)
-            o_pred_acc = to_numpy(o_pred_acc)
+            pred_acc = self.gnn_model(ToDevice(self.gnn_model.device)(graph))
+            pred_acc = to_numpy(pred_acc)
 
             vert_seq = scn_info[SceneInfoKey.VERT_SEQ]
-            com_seq = scn_info[SceneInfoKey.COM_SEQ]
             v_kin = scn_info[SceneInfoKey.VERT_KINEMATIC].squeeze()
-            o_kin = scn_info[SceneInfoKey.OBJ_KINEMATIC].squeeze()
             v_mask = v_kin == KinematicType.DYNAMIC
-            o_mask = o_kin == KinematicType.DYNAMIC
 
             pred_verts = np.empty_like(vert_seq[-1, ...])
-            pred_com = np.empty_like(com_seq[-1, ...])
             pred_verts[v_kin == KinematicType.STATIC, :] = vert_seq[
                 -1, v_kin == KinematicType.STATIC, :
             ]
-            pred_com[o_kin == KinematicType.STATIC, :] = com_seq[
-                -1, o_kin == KinematicType.STATIC, :
-            ]
+
             pred_verts[v_mask, :] = (
-                v_pred_acc[v_mask, :]
+                pred_acc[v_mask, :]
                 + 2 * vert_seq[-1, v_mask, :]
                 - vert_seq[-2, v_mask, :]
             )
-            pred_com[o_mask, :] = (
-                o_pred_acc[o_mask, :]
-                + 2 * com_seq[-1, o_mask, :]
-                - com_seq[-2, o_mask, :]
-            )
+
             rel_transforms = self.physical_tracker.get_transform_updates(
                 # source_verts=vert_seq[-1, ...],
                 target_verts=pred_verts,
@@ -201,13 +186,6 @@ class MjSimLearned(MjSim):
                 quaternions=latest_quaternions,
                 obj_ids=self.name_id_map,
             )
-
-            # self.scn_info[SceneInfoKey.VERT_SEQ] = np.vstack(
-            #     [self.scn_info[SceneInfoKey.VERT_SEQ][1:], pred_verts[np.newaxis, :]]
-            # )
-            # self.scn_info[SceneInfoKey.COM_SEQ] = np.vstack(
-            #     [self.scn_info[SceneInfoKey.COM_SEQ][1:], pred_com[np.newaxis, :]]
-            # )
 
         else:
             raise TypeError(f"Invalid backend {backend}")
