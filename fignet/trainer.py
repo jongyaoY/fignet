@@ -38,7 +38,7 @@ from fignet.data.transform import ToHeteroGraph
 from fignet.data.types import KinematicType
 from fignet.graph_builders import FIGNodeType, GraphBuildCfg
 from fignet.logger import Logger
-from fignet.simulator import LearnedSimulator, SimCfg
+from fignet.modules.simulator import LearnedSimulator, SimCfg
 from fignet.utils.conversion import to_numpy
 from fignet.utils.geometric import rot_diff
 from fignet.utils.plt import init_fig, plot_grad_flow

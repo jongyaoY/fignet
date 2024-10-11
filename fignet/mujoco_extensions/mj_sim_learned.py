@@ -29,10 +29,10 @@ from robosuite.utils.binding_utils import MjSim
 from torch_geometric.transforms import ToDevice
 
 from fignet.data.types import KinematicType
+from fignet.modules.simulator import LearnedSimulator
 from fignet.mujoco_extensions.mj_utils import set_mjdata
 from fignet.mujoco_extensions.physics_state_tracker import PhysicsStateTracker
 from fignet.mujoco_extensions.preprocess import get_scene_info
-from fignet.simulator import LearnedSimulator
 from fignet.utils.conversion import to_numpy
 from fignet.utils.geometric import pose_to_transform, transform_to_pose
 from fignet.utils.scene import SceneInfoKey, build_graph

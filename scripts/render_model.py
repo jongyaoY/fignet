@@ -181,7 +181,7 @@ if __name__ == "__main__":
     # !adhoc solution to load weights from old models
     if "cfg" not in dicts:
         from fignet.graph_builders import FIGEdgeType, GraphBuildCfg
-        from fignet.simulator import SimCfg
+        from fignet.modules.simulator import SimCfg
 
         if FIGEdgeType.VCollideV in dicts["_edge_normalizers"]:
             type = "fig"

@@ -29,8 +29,8 @@ import tqdm
 from robosuite.utils import OpenCVRenderer
 from robosuite.utils.binding_utils import MjRenderContext, MjSim
 
+from fignet.modules.simulator import LearnedSimulator
 from fignet.mujoco_extensions.mj_sim_learned import MjSimLearned
-from fignet.simulator import LearnedSimulator
 from fignet.utils.conversion import to_numpy
 
 
