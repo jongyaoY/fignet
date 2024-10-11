@@ -21,7 +21,17 @@
 # SOFTWARE.
 
 import enum
-from typing import Dict, List, Optional, Tuple, TypedDict, Union
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+    TypedDict,
+    TypeVar,
+    Union,
+)
 
 from numpy.typing import NDArray
 
@@ -35,6 +45,29 @@ class MetaEnum(enum.EnumMeta):
         except ValueError:
             return False
         return True
+
+
+class StrEnum(enum.Enum, metaclass=MetaEnum):
+    def __str__(self) -> str:
+        return self.value
+
+
+K = TypeVar("K", bound=enum.Enum)  # Keys are Enums
+V = TypeVar("V")  # Values can be any type
+
+
+class EnumKeyDict(Dict[str, V], Generic[K, V]):
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        if isinstance(key, enum.Enum):
+            key = str(key)
+
+        super().__setitem__(key, value)
+
+    def __getitem__(self, key):
+        if isinstance(key, enum.Enum):
+            key = str(key)
+        return super().__getitem__(key)
 
 
 class KinematicType(enum.IntEnum):

@@ -37,7 +37,9 @@ def to_numpy(tensor: torch.Tensor):
         return tensor
 
 
-def to_tensor(array: Union[np.ndarray, torch.Tensor], device: str = None):
+def to_tensor(
+    array: Union[np.ndarray, torch.Tensor, int, list], device: str = None
+):
     if isinstance(array, torch.Tensor):
         if array.dtype == torch.float64:
             tensor = array.float()
@@ -48,8 +50,11 @@ def to_tensor(array: Union[np.ndarray, torch.Tensor], device: str = None):
             tensor = torch.from_numpy(array).long()
         else:
             tensor = torch.from_numpy(array).float()
-    # elif isinstance(array, dict):
-    #     return dict_to_tensor(array, device)
+    elif isinstance(array, int):
+        tensor = torch.LongTensor([array])
+    elif isinstance(array, list):
+        for i in len(array):
+            array[i] = to_tensor(array[i])
     else:
         raise TypeError(f"Cannot conver {type(array)} to tensor")
 
@@ -59,30 +64,13 @@ def to_tensor(array: Union[np.ndarray, torch.Tensor], device: str = None):
         return tensor
 
 
-def dict_to_tensor(d: dict, device=None):
+def dict_to_tensor(d: dict):
     new_dict = dict()
     for k, v in d.items():
         if isinstance(v, dict):
-            new_dict[k] = dict_to_tensor(v, device)
+            new_dict[k] = dict_to_tensor(v)
         else:
-            if device is None:
-                new_dict[k] = torch.FloatTensor(v)
-            else:
-                if isinstance(v, torch.Tensor):
-                    if v.dtype == torch.long:
-                        new_dict[k] = v.to(device)
-                    else:
-                        new_dict[k] = v.float().to(device)
-                elif isinstance(v, np.ndarray):
-                    if v.dtype == np.int64:
-                        new_dict[k] = torch.from_numpy(v).long().to(device)
-                    else:
-                        new_dict[k] = torch.from_numpy(v).float().to(device)
-                elif isinstance(v, int):
-                    new_dict[k] = torch.LongTensor([v]).to(device)
-                else:
-                    raise TypeError(f"Unexpected data type: {type(v)}")
-
+            new_dict[k] = to_tensor(v)
     return new_dict
 
 

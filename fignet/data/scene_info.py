@@ -45,3 +45,18 @@ class SceneInfoKey(enum.Enum, metaclass=MetaEnum):
 
 
 SceneInfoDict = Dict[SceneInfoKey, Any]
+
+
+def serialize_scene_info(info: SceneInfoDict):
+    serialized_dict = {}
+    for k, v in info.items():
+        serialized_dict[k.value] = v
+
+    return serialized_dict
+
+
+def deserialize_scene_info(serialized_info: Dict[str, Any]):
+    out_dict: SceneInfoDict = {}
+    for k, v in serialized_info.items():
+        out_dict[SceneInfoKey(k)] = v
+    return out_dict

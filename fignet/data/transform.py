@@ -40,12 +40,9 @@ class ToHeteroGraph(object):
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
-    def __init__(self, device=None):
-        self.device = device
-
     def __call__(self, sample):
         # convert numpy arrays to pytorch tensors
         if isinstance(sample, dict):
-            return dict_to_tensor(sample, self.device)
+            return dict_to_tensor(sample)
         else:
             raise TypeError(f"Cannot convert {type(sample)} to tensor.")

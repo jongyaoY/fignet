@@ -34,6 +34,7 @@ import torch
 import tqdm
 import yaml
 
+from fignet.data.scene_info import serialize_scene_info
 from fignet.mujoco_extensions.mj_sim_learned import MjSimLearned
 from fignet.mujoco_extensions.physics_state_tracker import PhysicsStateTracker
 from fignet.mujoco_extensions.preprocess import get_scene_info
@@ -78,7 +79,7 @@ def save_graph(graph, graph_i, save_path):
             os.mkdir(save_path)
         file_name = os.path.join(save_path, f"graph_{graph_i}.pkl")
         with open(file_name, "wb") as f:
-            pickle.dump(graph_dict, f)
+            pickle.dump(serialize_scene_info(graph_dict), f)
 
 
 def process_episode(traj, sim_cfg, ep_i, lock, counter):
