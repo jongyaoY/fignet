@@ -20,10 +20,11 @@ datasets:
 
 training:
   total_steps: 1000
-  val_step: 500
+  val_step: 20
   warmup_steps: 1
   lr_init: 1.0e-3
   lr_decay_rate: 0.1
 
 logging:
   folder: "log"
+  experiment: "fig"

@@ -24,6 +24,7 @@ import argparse
 
 import pytorch_lightning as pl
 import yaml
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from fignet.data.datasets import create_dataloaders
 from fignet.graph_builders import GraphBuildCfg
@@ -73,8 +74,13 @@ if __name__ == "__main__":
         dataloader=data_loaders["train"],
         num_batches=config["training"]["warmup_steps"],
     )
+    logger = TensorBoardLogger(
+        save_dir=config["logging"]["folder"],
+        name=config["logging"]["experiment"],
+    )
 
     trainer = pl.Trainer(
+        logger=logger,
         max_steps=config["training"]["total_steps"],
         log_every_n_steps=10,
         val_check_interval=config["training"]["val_step"],
