@@ -57,6 +57,11 @@ class Normalizer(nn.Module):
         )
         self._device = device
 
+    def to(self, device):
+        for attr, value in self.__dict__.items():
+            if isinstance(value, torch.Tensor):
+                setattr(self, attr, value.to(device))
+
     def forward(self, batched_data, accumulate=True):
         """Normalizes input data and accumulates statistics."""
         if accumulate:

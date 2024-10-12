@@ -111,27 +111,7 @@ class LearnedSimulator(nn.Module):
             node_dim_dict = init_info["node_dim_dict"]
             edge_dim_dict = init_info["edge_dim_dict"]
             self._init_info = init_info
-        # self.graph_meta = graph.metadata
-        self._node_normalizers = {}
-        self._edge_normalizers = {}
-        for node_type, node_dim in node_dim_dict.items():
-            self._node_normalizers[node_type] = Normalizer(
-                size=node_dim,
-                name="_".join([node_type, "node_normalizer"]),
-                device=self._device,
-            )
-        for edge_type, edge_dim in edge_dim_dict.items():
-            edge_type_name = edge_type[1]
-            self._edge_normalizers[edge_type] = Normalizer(
-                size=edge_dim,
-                name="_".join([edge_type_name, "edge_normalizer"]),
-                device=self._device,
-            )
-        self._output_normalizer = Normalizer(
-            size=self._mesh_dimensions,
-            name="output_normalizer",
-            device=self._device,
-        )
+        # Initialize GNN
         input_dim_dict = {}
         input_dim_dict.update(node_dim_dict)
         input_dim_dict.update(edge_dim_dict)
@@ -143,6 +123,29 @@ class LearnedSimulator(nn.Module):
             input_dim_dict=input_dim_dict,
             output_dim_dict=output_dim_dict,
             **self._gnn_params,
+        )
+        # Make sure normalizers and GNN params are on the same device
+        device = next(self.parameters()).device
+        # Initialize normalizers
+        self._node_normalizers = {}
+        self._edge_normalizers = {}
+        for node_type, node_dim in node_dim_dict.items():
+            self._node_normalizers[node_type] = Normalizer(
+                size=node_dim,
+                name="_".join([node_type, "node_normalizer"]),
+                device=device,
+            )
+        for edge_type, edge_dim in edge_dim_dict.items():
+            edge_type_name = edge_type[1]
+            self._edge_normalizers[edge_type] = Normalizer(
+                size=edge_dim,
+                name="_".join([edge_type_name, "edge_normalizer"]),
+                device=device,
+            )
+        self._output_normalizer = Normalizer(
+            size=self._mesh_dimensions,
+            name="output_normalizer",
+            device=device,
         )
 
         self._cfg = cfg
@@ -207,6 +210,14 @@ class LearnedSimulator(nn.Module):
         if not self.training:
             out = self.denormalize_accelerations(out)
         return out
+
+    def to(self, device):
+        super().to(device)
+        for normalizer in self._node_normalizers.values():
+            normalizer.to(device)
+        for normalizer in self._edge_normalizers.values():
+            normalizer.to(device)
+        self._output_normalizer.to(device)
 
     def predict_accelerations(
         self,
