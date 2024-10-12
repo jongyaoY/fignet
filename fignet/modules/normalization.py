@@ -37,25 +37,54 @@ class Normalizer(nn.Module):
         super(Normalizer, self).__init__()
         self.name = name
         self._max_accumulations = max_accumulations
-        self._std_epsilon = torch.tensor(
-            std_epsilon,
-            dtype=torch.float32,
-            requires_grad=False,
-            device=device,
-        )
-        self._acc_count = torch.tensor(
-            0, dtype=torch.float32, requires_grad=False, device=device
-        )
-        self._num_accumulations = torch.tensor(
-            0, dtype=torch.float32, requires_grad=False, device=device
-        )
-        self._acc_sum = torch.zeros(
-            (1, size), dtype=torch.float32, requires_grad=False, device=device
-        )
-        self._acc_sum_squared = torch.zeros(
-            (1, size), dtype=torch.float32, requires_grad=False, device=device
-        )
+        params = {
+            "_std_epsilon": torch.tensor(
+                std_epsilon,
+                dtype=torch.float32,
+                requires_grad=False,
+                device=device,
+            ),
+            "_acc_count": torch.tensor(
+                0, dtype=torch.float32, requires_grad=False, device=device
+            ),
+            "_num_accumulations": torch.tensor(
+                0, dtype=torch.float32, requires_grad=False, device=device
+            ),
+            "_acc_sum": torch.zeros(
+                (1, size),
+                dtype=torch.float32,
+                requires_grad=False,
+                device=device,
+            ),
+            "_acc_sum_squared": torch.zeros(
+                (1, size),
+                dtype=torch.float32,
+                requires_grad=False,
+                device=device,
+            ),
+        }
+        # self._std_epsilon = torch.tensor(
+        #     std_epsilon,
+        #     dtype=torch.float32,
+        #     requires_grad=False,
+        #     device=device,
+        # )
+        # self._acc_count = torch.tensor(
+        #     0, dtype=torch.float32, requires_grad=False, device=device
+        # )
+        # self._num_accumulations = torch.tensor(
+        #     0, dtype=torch.float32, requires_grad=False, device=device
+        # )
+        # self._acc_sum = torch.zeros(
+        #     (1, size), dtype=torch.float32, requires_grad=False, device=device
+        # )
+        # self._acc_sum_squared = torch.zeros(
+        #     (1, size), dtype=torch.float32, requires_grad=False, device=device
+        # )
         self._device = device
+
+        for attr, value in params.items():
+            setattr(self, attr, torch.nn.Parameter(value, requires_grad=False))
 
     def to(self, device):
         for attr, value in self.__dict__.items():
@@ -116,22 +145,22 @@ class Normalizer(nn.Module):
 
         return torch.maximum(std, self._std_epsilon)
 
-    def get_variable(self):
-        dict = {
-            "_max_accumulations": self._max_accumulations,
-            "_std_epsilon": self._std_epsilon,
-            "_acc_count": self._acc_count,
-            "_num_accumulations": self._num_accumulations,
-            "_acc_sum": self._acc_sum,
-            "_acc_sum_squared": self._acc_sum_squared,
-            "name": self.name,
-        }
+    # def get_variable(self):
+    #     dict = {
+    #         "_max_accumulations": self._max_accumulations,
+    #         "_std_epsilon": self._std_epsilon,
+    #         "_acc_count": self._acc_count,
+    #         "_num_accumulations": self._num_accumulations,
+    #         "_acc_sum": self._acc_sum,
+    #         "_acc_sum_squared": self._acc_sum_squared,
+    #         "name": self.name,
+    #     }
 
-        return dict
+    #     return dict
 
-    def set_variable(self, var_dict):
-        for para, value in var_dict.items():
-            if isinstance(value, torch.Tensor):
-                setattr(self, para, value.to(self._device))
-            else:
-                setattr(self, para, value)
+    # def set_variable(self, var_dict):
+    #     for para, value in var_dict.items():
+    #         if isinstance(value, torch.Tensor):
+    #             setattr(self, para, value.to(self._device))
+    #         else:
+    #             setattr(self, para, value)

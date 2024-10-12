@@ -21,12 +21,13 @@
 # SOFTWARE.
 
 
-from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Dict, Union
 
 import torch
 import torch.nn as nn
+from dacite import from_dict
+from torch_geometric.nn.module_dict import ModuleDict
 from torch_geometric.typing import NodeOrEdgeType
 
 from fignet.data.hetero_graph import HeteroGraph
@@ -45,7 +46,6 @@ class SimCfg:
 class LearnedSimulator(nn.Module):
     def __init__(
         self,
-        mesh_dimensions: int,
         latent_dim: int,
         message_passing_steps: int,
         mlp_layers: int,
@@ -64,13 +64,12 @@ class LearnedSimulator(nn.Module):
         """
         super(LearnedSimulator, self).__init__()
 
-        self._mesh_dimensions = mesh_dimensions
-        assert self._mesh_dimensions == 3
+        self._mesh_dimensions = 3
 
         self._is_initialized = False
         self._encode_process_decode: EncodeProcessDecode = None
-        self._node_normalizers = defaultdict(Dict[str, Normalizer])
-        self._edge_normalizers = defaultdict(Dict[tuple, Normalizer])
+        self._node_normalizers: Dict[str, Normalizer] = ModuleDict()
+        self._edge_normalizers: Dict[tuple, Normalizer] = ModuleDict()
         self._output_normalizer = None
         self._device = device
         self._gnn_params = {
@@ -127,8 +126,6 @@ class LearnedSimulator(nn.Module):
         # Make sure normalizers and GNN params are on the same device
         device = next(self.parameters()).device
         # Initialize normalizers
-        self._node_normalizers = {}
-        self._edge_normalizers = {}
         for node_type, node_dim in node_dim_dict.items():
             self._node_normalizers[node_type] = Normalizer(
                 size=node_dim,
@@ -211,14 +208,6 @@ class LearnedSimulator(nn.Module):
             out = self.denormalize_accelerations(out)
         return out
 
-    def to(self, device):
-        super().to(device)
-        for normalizer in self._node_normalizers.values():
-            normalizer.to(device)
-        for normalizer in self._edge_normalizers.values():
-            normalizer.to(device)
-        self._output_normalizer.to(device)
-
     def predict_accelerations(
         self,
         input: HeteroGraph,
@@ -237,73 +226,52 @@ class LearnedSimulator(nn.Module):
 
         return m_pred_acc, o_pred_acc
 
+    def state_dict(self, *args, **kwargs):
+        state = super().state_dict(*args, **kwargs)
+        state["cfg"] = asdict(self.cfg)
+        state["init_info"] = self._init_info
+        state["gnn_params"] = self._gnn_params
+        return state
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        cfg = state_dict.pop("cfg")
+        cfg = from_dict(SimCfg, cfg)
+        init_info = state_dict.pop("init_info")
+        if "gnn_params" in state_dict:
+            state_dict.pop("gnn_params")
+        if not self.initialized:
+            self.init(init_info, cfg)
+        else:
+            if cfg != self._cfg or init_info != self._init_info:
+                raise ValueError("Loaded states not match")
+        self._is_initialized = True
+
+        return super().load_state_dict(state_dict, *args, **kwargs)
+
     def save(self, path: str = "model.pt"):
         """Save model state
 
         Args:
             path: Model path
         """
-        model = self.state_dict()
-        _output_normalizer = self._output_normalizer.get_variable()
 
-        save_data = {
-            "cfg": self.cfg,
-            "model": model,
-            "_output_normalizer": _output_normalizer,
-            "_gnn_params": self._gnn_params,
-            "_init_info": self._init_info,
-            "_node_normalizers": defaultdict(
-                Dict[str, Dict[str, torch.Tensor]]
-            ),
-            "_edge_normalizers": defaultdict(
-                Dict[tuple, Dict[str, torch.Tensor]]
-            ),
-        }
-        for name, normalizer in self._node_normalizers.items():
-            save_data["_node_normalizers"].update(
-                {
-                    name: normalizer.get_variable(),
-                }
-            )
-        for name, normalizer in self._edge_normalizers.items():
-            save_data["_edge_normalizers"].update(
-                {
-                    name: normalizer.get_variable(),
-                }
-            )
-        torch.save(save_data, path)
+        torch.save(self.state_dict(), path)
 
+    @classmethod
     def load(self, path: str):
         """Load model state from file
 
         Args:
             path: Model path
         """
-        dicts = torch.load(path, map_location=self._device)
-        model = dicts.pop("model")
-        self._gnn_params = dicts.pop("_gnn_params")  # override gnn params
+        dicts = torch.load(path)
 
-        if not self.initialized:
-            self.init(dicts.pop("_init_info"), dicts.pop("cfg"))
-
-        self.load_state_dict(model)
-        # load normalizers
-        keys = list(dicts.keys())
-        for k in keys:
-            v = dicts[k]
-            object = getattr(self, k)
-            if isinstance(object, Normalizer):
-                object.set_variable(v)
-                object.to(self._device)
-            elif isinstance(object, dict) and k in [
-                "_node_normalizers",
-                "_edge_normalizers",
-            ]:
-                for name, params in v.items():
-                    object[name].set_variable(params)
-                    object[name].to(self._device)
-            else:
-                raise TypeError("Unknown attribute")
+        if "state_dict" in dicts:
+            state_dict = dicts["state_dict"]
+        else:
+            state_dict = dicts
+        model = LearnedSimulator(**state_dict["gnn_params"])
+        model.load_state_dict(state_dict)
 
         print("Simulator model loaded checkpoint %s" % path)
-        self._is_initialized = True
+        return model
