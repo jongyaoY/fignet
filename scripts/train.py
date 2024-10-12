@@ -22,12 +22,66 @@
 
 import argparse
 
-from fignet.trainer import create_trainer
+import pytorch_lightning as pl
+import yaml
+
+from fignet.data.datasets import create_dataloaders
+from fignet.graph_builders import GraphBuildCfg
+from fignet.modules.simulator import SimCfg
+from fignet.pl_modules.pl_model import LighteningLearnedSimulator, warm_up
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config_file", required=True)
 args = parser.parse_args()
 
+
+def load_config(args):
+    with open(args.config_file, "r") as file:
+        config = yaml.safe_load(file)
+    return config
+
+
 if __name__ == "__main__":
-    trainer = create_trainer(config_file=args.config_file)
-    trainer.train()
+    config = load_config(args)
+    model = LighteningLearnedSimulator(
+        batch_size=config["datasets"]["batch_size"],
+        latent_dim=config["gnn"]["latent_dim"],
+        message_passing_steps=config["gnn"]["message_passing_steps"],
+        mlp_layers=config["gnn"]["mlp_layers"],
+        mlp_hidden_dim=config["gnn"]["mlp_hidden_dim"],
+    )
+    sim_cfg = SimCfg(
+        build_cfg=GraphBuildCfg(
+            type=config["simulator"]["graph_builder"]["type"],
+            noise_std=config["simulator"]["graph_builder"]["noise_std"],
+        ),
+        input_sequence_length=config["simulator"]["input_seq_length"],
+        collision_radius=config["simulator"]["collision_radius"],
+    )
+    data_loaders = create_dataloaders(
+        val_ratio=config["datasets"]["val_ratio"],
+        num_workers=config["datasets"]["num_workers"],
+        batch_size=config["datasets"]["batch_size"],
+        rollout_datapath=config["datasets"]["rollout"],
+        rollout_length=config["datasets"]["rollout_length"],
+        root=config["datasets"]["train"],
+        build_config=sim_cfg.build_cfg,
+    )
+    warm_up(
+        model=model.gnn_model,
+        sim_cfg=sim_cfg,
+        dataloader=data_loaders["train"],
+        num_batches=config["training"]["warmup_steps"],
+    )
+
+    trainer = pl.Trainer(
+        max_steps=config["training"]["total_steps"],
+        log_every_n_steps=10,
+        val_check_interval=config["training"]["val_step"],
+        gpus=1,
+    )
+    trainer.fit(
+        model,
+        train_dataloaders=data_loaders["train"],
+        val_dataloaders=[data_loaders["val"], data_loaders["rollout"]],
+    )
