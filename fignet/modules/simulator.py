@@ -50,7 +50,6 @@ class LearnedSimulator(nn.Module):
         message_passing_steps: int,
         mlp_layers: int,
         mlp_hidden_dim: int,
-        device="cpu",
     ):
         """Initializer
 
@@ -71,7 +70,6 @@ class LearnedSimulator(nn.Module):
         self._node_normalizers: Dict[str, Normalizer] = ModuleDict()
         self._edge_normalizers: Dict[tuple, Normalizer] = ModuleDict()
         self._output_normalizer = None
-        self._device = device
         self._gnn_params = {
             "latent_dim": latent_dim,
             "mlp_layers": mlp_layers,
@@ -91,7 +89,7 @@ class LearnedSimulator(nn.Module):
 
     @property
     def device(self):
-        return self._device
+        return next(iter(self.parameters())).device
 
     def init(
         self,
@@ -124,7 +122,7 @@ class LearnedSimulator(nn.Module):
             **self._gnn_params,
         )
         # Make sure normalizers and GNN params are on the same device
-        device = next(self.parameters()).device
+        device = self.device
         # Initialize normalizers
         for node_type, node_dim in node_dim_dict.items():
             self._node_normalizers[node_type] = Normalizer(
