@@ -1,0 +1,29 @@
+simulator:
+  collision_radius: 0.01
+  input_seq_length: 3
+  graph_builder:
+    type: 'fig'
+    noise_std: 3.0e-5
+gnn:
+  latent_dim: 128
+  message_passing_steps: 10
+  mlp_layers: 2
+  mlp_hidden_dim: 128
+
+datasets:
+  train: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500"
+  rollout: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500.npz"
+  rollout_length: 50
+  val_ratio: 0.2
+  num_workers: 2
+  batch_size: 16
+
+training:
+  total_steps: 1000
+  val_step: 500
+  warmup_steps: 1
+  lr_init: 1.0e-3
+  lr_decay_rate: 0.1
+
+logging:
+  folder: "log"
