@@ -43,9 +43,7 @@ def warm_up(
     if not model.initialized:
         sample = next(iter(dataloader))
         model.init(sample, sim_cfg)
-    device = next(model.parameters()).device
-    # if next(model.parameters()).device != device:
-    #     model.to(device)
+    device = model.device
     to_device = ToDevice(device)
     for batch_idx, batch in tqdm.tqdm(
         enumerate(dataloader), desc="Warm up step"
