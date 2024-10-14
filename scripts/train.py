@@ -46,6 +46,7 @@ if __name__ == "__main__":
     config = load_config(args)
     model = LighteningLearnedSimulator(
         batch_size=config["datasets"]["batch_size"],
+        num_rollouts=config["datasets"]["num_rollouts"],
         latent_dim=config["gnn"]["latent_dim"],
         message_passing_steps=config["gnn"]["message_passing_steps"],
         mlp_layers=config["gnn"]["mlp_layers"],

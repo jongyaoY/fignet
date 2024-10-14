@@ -14,9 +14,10 @@ datasets:
   train: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500"
   rollout: "test_datasets/rigidFall_epLen_100_inter_10_totalSteps_500.npz"
   rollout_length: 50
-  val_ratio: 0.2
+  val_ratio: 0.01
   num_workers: 2
   batch_size: 16
+  num_rollouts: 100
 
 training:
   total_steps: 1000
