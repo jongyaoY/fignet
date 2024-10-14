@@ -168,34 +168,7 @@ def render_simulator(
 
 
 if __name__ == "__main__":
-    latent_dim = 128
-    learned_sim = fignet.LearnedSimulator(
-        mesh_dimensions=3,
-        latent_dim=latent_dim,
-        message_passing_steps=10,
-        mlp_layers=2,
-        mlp_hidden_dim=latent_dim,
-        device=device,
-    )
-    dicts = torch.load(model_path, map_location=device)
-    # !adhoc solution to load weights from old models
-    if "cfg" not in dicts:
-        from fignet.graph_builders import FIGEdgeType, GraphBuildCfg
-        from fignet.modules.simulator import SimCfg
-
-        if FIGEdgeType.VCollideV in dicts["_edge_normalizers"]:
-            type = "fig"
-        else:
-            type = "fig_plus"
-        builder_cfg = GraphBuildCfg(type=type)
-        cfg = SimCfg(
-            input_sequence_length=3,
-            collision_radius=0.01,
-            build_cfg=builder_cfg,
-        )
-        dicts.update({"cfg": cfg})
-        torch.save(dicts, model_path)
-    learned_sim.load(model_path)
+    learned_sim = fignet.LearnedSimulator.load(model_path)
     learned_sim.to(device)
     learned_sim.eval()
     for ep_i in range(num_ep):
