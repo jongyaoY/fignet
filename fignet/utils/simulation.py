@@ -72,7 +72,7 @@ def visualize_trajectory(
     jnt_traj: np.ndarray = None,
     off_screen: bool = False,
     camera_name: str = None,
-):
+) -> np.ndarray:
     sim = MjSim.from_xml_string(mujoco_xml)
 
     render_context = MjRenderContext(sim)

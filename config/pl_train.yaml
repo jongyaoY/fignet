@@ -17,7 +17,7 @@ datasets:
   val_ratio: 0.01
   num_workers: 2
   batch_size: 16
-  num_rollouts: 100
+  num_rollouts: 2
 
 training:
   total_steps: 1000

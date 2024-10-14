@@ -60,6 +60,7 @@ class LighteningLearnedSimulator(pl.LightningModule):
         self,
         batch_size: int,
         num_rollouts: int = 1,
+        log_video: bool = True,
         lr_init: float = 1e-3,
         lr_decay_rate: float = 0.1,
         lr_decay_steps: int = 1000000,
@@ -74,7 +75,7 @@ class LighteningLearnedSimulator(pl.LightningModule):
 
     def training_step(self, batch: HeteroGraph):
         loss = self._cal_loss(batch)
-        self.log("train_loss", loss)
+        self.log("loss/train", loss)
 
         return loss
 
@@ -93,7 +94,7 @@ class LighteningLearnedSimulator(pl.LightningModule):
         elif isinstance(batch, dict):
             if batch_idx >= self.hparams.num_rollouts:
                 return
-            errors = self._rollout_step(batch)
+            errors = self._rollout_step(batch, batch_idx)
             # for k, v in errors.items():
             #     self.log(
             #         k,
@@ -110,7 +111,7 @@ class LighteningLearnedSimulator(pl.LightningModule):
         errors = outputs[1]
         # for idx, val in enumerate(val_loss):
         avg_val_loss = torch.stack(val_loss).mean()
-        self.log("val_loss", avg_val_loss)
+        self.log("loss/val", avg_val_loss)
         keys = next(iter(errors)).keys()
         # avg_errors = {}
         for k in keys:
@@ -153,7 +154,7 @@ class LighteningLearnedSimulator(pl.LightningModule):
 
         return loss
 
-    def _rollout_step(self, sample: dict):
+    def _rollout_step(self, sample: dict, batch_idx: int):
         gnn_model = self.gnn_model
         input_seq_length = gnn_model.cfg.input_sequence_length
         gt_traj = sample["pose_seq"]
@@ -167,6 +168,41 @@ class LighteningLearnedSimulator(pl.LightningModule):
             mujoco_xml=mujoco_xml,
             nsteps=ep_len,
         )
+
+        if batch_idx == 0 and self.hparams.log_video:
+            height = 240
+            width = 320
+            fps = 10
+            screen_pred = fignet.visualize_trajectory(
+                mujoco_xml=mujoco_xml,
+                pose_traj=pred_traj,
+                pose_addr=pose_addr,
+                height=height,
+                width=width,
+                off_screen=True,
+            )
+            screen_gt = fignet.visualize_trajectory(
+                mujoco_xml=mujoco_xml,
+                pose_traj=gt_traj[input_seq_length - 1 :, ...],
+                pose_addr=pose_addr,
+                height=height,
+                width=width,
+                off_screen=True,
+            )
+            screen_pred = screen_pred.transpose(0, 3, 1, 2)
+            screen_gt = screen_gt.transpose(0, 3, 1, 2)
+            self.logger.experiment.add_video(
+                "video/simulation",
+                torch.from_numpy(screen_pred[np.newaxis, :]),
+                self.global_step,
+                fps=fps,
+            )
+            self.logger.experiment.add_video(
+                "video/ground_truth",
+                torch.from_numpy(screen_gt[np.newaxis, :]),
+                self.global_step,
+                fps=fps,
+            )
         # Calculate rollout errors
 
         rollout_errors = self._cal_pose_errors(
