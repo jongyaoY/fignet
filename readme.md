@@ -30,6 +30,8 @@ the paper. Welcome to contribute if you find errors in the implementation.
 - [Pytorch](https://pytorch.org/)
 - [Pytorch3D](https://github.com/facebookresearch/pytorch3d)
 - [PyTorch Geometric](https://github.com/pyg-team/pytorch_geometric)
+- [PyTorch Lightning](https://github.com/Lightning-AI/pytorch-lightning) (tested
+  with 1.5.6)
 - [hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl)
 - [trimesh](https://trimesh.org)
 - [mujoco](https://mujoco.org/)
@@ -125,6 +127,11 @@ Install PyTorch and torchvision
 # adapt to your cuda version, this will install torch 2.4.0 with cuda 12.1 and torchvision 0.19.0
 pip3 install torch torchvision --extra-index-url https://download.pytorch.org/whl/cu113
 ```
+
+Install PyTorch Lightning
+
+:exclamation: Tested with 1.5.6. Newer versions might be incompatible with
+HeteroData from PyTorch Geometric (see [issue #9315](https://github.com/pyg-team/pytorch_geometric/issues/9315)).
 
 Install PyTorch3D following [install
 instruction](https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md)
