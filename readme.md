@@ -260,6 +260,22 @@ model predictions of `100` steps:
   <img src="docs/img/simulation_0_star.gif" width="240"/>
 </div>
 
+Transfer to new objects and environment
+
+<div align="center">
+  <p style="text-align:center;">Ground Truth</p>
+
+  <img src="docs/img/ground_truth_0_smallCabin.gif" width="240"/>
+  <img src="docs/img/ground_truth_1_smallCabin.gif" width="240"/>
+  <img src="docs/img/ground_truth_2_smallCabin.gif" width="240"/>
+
+  <p style="text-align:center;">FIGNet</p>
+
+  <img src="docs/img/simulation_0_smallCabin.gif" width="240"/>
+  <img src="docs/img/simulation_1_smallCabin.gif" width="240"/>
+  <img src="docs/img/simulation_2_smallCabin.gif" width="240"/>
+</div>
+
 ### Model Weights
 
 The weights can be downloaded here:
