@@ -325,6 +325,28 @@ HPP-FCL - An extension of the Flexible
 Collision Library (Version 2.4.4) [Computer software].
 [https://github.com/humanoid-path-planner/hpp-fcl](https://github.com/humanoid-path-planner/hpp-fcl)
 
+## Citing
+
+If you find this project helpful, please consider to cite:
+
+```
+Yi, Z. (2024). FIGNet PyTorch implementation (Version 0.0.1) [Computer software]. https://doi.org/10.5281/zenodo.13763155
+```
+
+Or use the following BibTeX entry:
+
+```
+@software{Yi_FIGNet_PyTorch_implementation_2024,
+author = {Yi, Zongyao},
+doi = {10.5281/zenodo.13763155},
+month = sep,
+title = {{FIGNet PyTorch implementation}},
+url = {https://github.com/jongyaoY/fignet},
+version = {0.0.1},
+year = {2024}
+}
+```
+
 ## License
 
 [MIT License](LICENSE)
